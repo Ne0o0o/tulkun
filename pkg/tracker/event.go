@@ -115,5 +115,6 @@ func (e EventDNS) Handle(b []byte) {
 		Comm:    e.MsgRaw.Comm.string(),
 	}
 	msgByte, _ := json.Marshal(e.Msg)
+	msgByte = append(msgByte, []byte("\n")...)
 	_, _ = e.Output.Write(msgByte)
 }

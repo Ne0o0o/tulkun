@@ -20,8 +20,8 @@ func main() {
 		c := make(chan os.Signal)
 		signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 		for e := range c {
-			cancel(errors.New(fmt.Sprintf("quit with singal `%s`", e.String())))
+			cancel(errors.New(fmt.Sprintf("quit with signal `%s`", e.String())))
+			return
 		}
-		return
 	}(cancel)
 }
