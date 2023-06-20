@@ -2,10 +2,8 @@ package tracker
 
 import (
 	"net"
-	"syscall"
 
 	"github.com/cilium/ebpf"
-
 	"github.com/cilium/ebpf/link"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -80,14 +78,14 @@ func (sf *SocketFilter) EbpfName() string {
 
 func (sf *SocketFilter) Attach() {
 	// create socket file descriptor
-	socketFd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(HostToNetShort(syscall.ETH_P_ALL)))
+	socketFd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(HostToNetShort(unix.ETH_P_ALL)))
 	if err != nil {
 		log.Errorf("attach socket filter error `%s`", err)
 		return
 	}
 	sf.socketFD = socketFd
 	// set socket
-	if err := syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, unix.SO_ATTACH_BPF, sf.program.FD()); err != nil {
+	if err := unix.SetsockoptInt(socketFd, unix.SOL_SOCKET, unix.SO_ATTACH_BPF, sf.program.FD()); err != nil {
 		log.Errorf("attach socket filter error `%s`", err)
 	}
 	log.Infof("attach socket filter success")
@@ -98,19 +96,19 @@ func (sf *SocketFilter) Attach() {
 			log.Errorf("get net interface error `%s`", err)
 			return
 		}
-		sll := syscall.SockaddrLinklayer{
+		sll := unix.SockaddrLinklayer{
 			Ifindex:  netInterface.Index,
-			Protocol: HostToNetShort(syscall.ETH_P_ALL),
+			Protocol: HostToNetShort(unix.ETH_P_ALL),
 		}
-		if err = syscall.Bind(sf.socketFD, &sll); err != nil {
+		if err = unix.Bind(sf.socketFD, &sll); err != nil {
 			log.Errorf("set socket filter interface error `%s`", err)
 		}
 	}
 }
 
 func (sf *SocketFilter) Detach() {
-	_ = syscall.SetsockoptInt(sf.socketFD, syscall.SOL_SOCKET, unix.SO_DETACH_BPF, sf.program.FD())
-	_ = syscall.Close(sf.socketFD)
+	_ = unix.SetsockoptInt(sf.socketFD, unix.SOL_SOCKET, unix.SO_DETACH_BPF, sf.program.FD())
+	_ = unix.Close(sf.socketFD)
 }
 
 func (sf *SocketFilter) SetProgram(prog *ebpf.Program, spec *ebpf.ProgramSpec) {
