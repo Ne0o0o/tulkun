@@ -7,6 +7,8 @@ import (
 	"io"
 	"net"
 
+	"tulkun/pkg/proc"
+
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -90,7 +92,7 @@ type EventDNSMsg struct {
 
 type EventDNS struct {
 	MsgRaw    EventDNSMsgRaw
-	Msg       EventDNSMsg
+	Msg       map[string]interface{}
 	Formatter func([]byte)
 	Output    io.Writer
 }
@@ -100,21 +102,56 @@ func (e EventDNS) Handle(b []byte) {
 		log.Errorf("decode data failed `%s`", err)
 		return
 	}
-	e.Msg = EventDNSMsg{
-		IFIndex: e.MsgRaw.IFIndex,
-		Proto:   e.MsgRaw.Proto,
-		SAddr:   e.MsgRaw.SAddr.string(),
-		DAddr:   e.MsgRaw.DAddr.string(),
-		SPort:   e.MsgRaw.SPort,
-		DPort:   e.MsgRaw.DPort,
-		DNS:     e.MsgRaw.DNS.string(),
-		Pid:     e.MsgRaw.Pid,
-		Uid:     e.MsgRaw.Uid,
-		Gid:     e.MsgRaw.Gid,
-		Tgid:    e.MsgRaw.Tgid,
-		Comm:    e.MsgRaw.Comm.string(),
-	}
+	e.Msg = make(map[string]interface{})
+	/*
+		e.Msg = EventDNSMsg{
+			IFIndex: e.MsgRaw.IFIndex,
+			Proto:   e.MsgRaw.Proto,
+			SAddr:   e.MsgRaw.SAddr.string(),
+			DAddr:   e.MsgRaw.DAddr.string(),
+			SPort:   e.MsgRaw.SPort,
+			DPort:   e.MsgRaw.DPort,
+			DNS:     e.MsgRaw.DNS.string(),
+			Pid:     e.MsgRaw.Pid,
+			Uid:     e.MsgRaw.Uid,
+			Gid:     e.MsgRaw.Gid,
+			Tgid:    e.MsgRaw.Tgid,
+			Comm:    e.MsgRaw.Comm.string(),
+		}*/
+
+	e.Msg["IFIndex"] = e.MsgRaw.IFIndex
+	e.Msg["Proto"] = e.MsgRaw.Proto
+	e.Msg["SAddr"] = e.MsgRaw.SAddr.string()
+	e.Msg["DAddr"] = e.MsgRaw.DAddr.string()
+	e.Msg["SPort"] = e.MsgRaw.SPort
+	e.Msg["DPort"] = e.MsgRaw.DPort
+	e.Msg["DNS"] = e.MsgRaw.DNS.string()
+	e.Msg["PID"] = e.MsgRaw.Pid
+	e.Msg["UID"] = e.MsgRaw.Uid
+	e.Msg["GID"] = e.MsgRaw.Gid
+	e.Msg["Comm"] = e.MsgRaw.Comm.string()
+
+	// enrich process relation fields
+	e.enrichProcess()
+
+	// output msg
 	msgByte, _ := json.Marshal(e.Msg)
 	msgByte = append(msgByte, []byte("\n")...)
 	_, _ = e.Output.Write(msgByte)
+}
+
+func (e EventDNS) enrichProcess() {
+	if e.MsgRaw.Pid == 0 {
+		return
+	}
+
+	p := proc.NewProcess(int32(e.MsgRaw.Pid))
+	e.Msg["PPID"] = p.PPID
+	if p.Runtime != nil {
+		if meta := p.InspectContainer(); meta != nil {
+			e.Msg["ContainerId"] = meta.ContainerId
+			e.Msg["ContainerName"] = meta.Name
+			e.Msg["ImageName"] = meta.Image
+		}
+	}
 }

@@ -1,4 +1,4 @@
-package Container
+package runtime
 
 import (
 	"context"
@@ -11,7 +11,13 @@ import (
 )
 
 type crioClient struct {
-	client cri.RuntimeServiceClient
+	client   cri.RuntimeServiceClient
+	socketFD string
+}
+
+func (cli *crioClient) InspectContainerWithCgroup(cgroup string) *ContainerMeta {
+	//TODO implement me
+	panic("implement me")
 }
 
 func NewCrioClient(socket string) (ContainersInterface, error) {
@@ -20,7 +26,7 @@ func NewCrioClient(socket string) (ContainersInterface, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &crioClient{client: cri.NewRuntimeServiceClient(conn)}, err
+	return &crioClient{client: cri.NewRuntimeServiceClient(conn), socketFD: unixSocket}, err
 }
 
 func (cli *crioClient) Version() string {
@@ -36,6 +42,16 @@ func (cli *crioClient) ListContainers() {
 	_, err := cli.client.ListContainers(context.Background(), &cri.ListContainersRequest{})
 	if err != nil {
 		log.Errorf("list containers error `%s`", err)
+		return
+	}
+}
+
+func (cli *crioClient) InspectContainer(containerID string) {
+	_, err := cli.client.ContainerStats(context.Background(), &cri.ContainerStatsRequest{
+		ContainerId: containerID,
+	})
+	if err != nil {
+		log.Errorf("get container inspect error `%s`", err)
 		return
 	}
 }

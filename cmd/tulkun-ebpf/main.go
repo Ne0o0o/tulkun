@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	_ "tulkun/pkg/cgroups"
 	"tulkun/pkg/tracker"
 )
 
