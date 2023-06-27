@@ -87,20 +87,20 @@ func (e EventDNS) Handle(b []byte) {
 		return
 	}
 	e.Msg = make(map[string]interface{})
-	e.Msg["IFIndex"] = e.MsgRaw.IFIndex
-	e.Msg["Proto"] = e.MsgRaw.Proto
-	e.Msg["SAddr"] = e.MsgRaw.SAddr.string()
-	e.Msg["DAddr"] = e.MsgRaw.DAddr.string()
-	e.Msg["SPort"] = e.MsgRaw.SPort
-	e.Msg["DPort"] = e.MsgRaw.DPort
+	e.Msg["ifindex"] = e.MsgRaw.IFIndex
+	e.Msg["proto"] = e.MsgRaw.Proto
+	e.Msg["saddr"] = e.MsgRaw.SAddr.string()
+	e.Msg["daddr"] = e.MsgRaw.DAddr.string()
+	e.Msg["sport"] = e.MsgRaw.SPort
+	e.Msg["dport"] = e.MsgRaw.DPort
 	e.Msg["DNS"] = e.MsgRaw.DNS.string()
 	e.Msg["PID"] = e.MsgRaw.Pid
-	e.Msg["UID"] = e.MsgRaw.Uid
-	e.Msg["GID"] = e.MsgRaw.Gid
-	e.Msg["Comm"] = e.MsgRaw.Comm.string()
+	e.Msg["uid"] = e.MsgRaw.Uid
+	e.Msg["gid"] = e.MsgRaw.Gid
+	e.Msg["comm"] = e.MsgRaw.Comm.string()
 	ifindex, err := net.InterfaceByIndex(int(e.MsgRaw.IFIndex))
 	if err == nil {
-		e.Msg["IFIndexName"] = ifindex.Name
+		e.Msg["ifindexName"] = ifindex.Name
 	}
 	// enrich process relation fields
 	e.enrichProcess()
@@ -118,14 +118,14 @@ func (e EventDNS) enrichProcess() {
 
 	p := proc.NewProcess(int32(e.MsgRaw.Pid))
 	e.Msg["PPID"] = p.PPID
-	e.Msg["Cmdline"] = p.Cmdline
-	e.Msg["Cgroup"] = p.CgroupPath
+	e.Msg["cmdline"] = p.Cmdline
+	e.Msg["cgroup"] = p.CgroupPath
 	if p.Runtime != nil {
 		if meta := p.InspectContainer(); meta != nil {
-			e.Msg["ContainerId"] = meta.ContainerId
-			e.Msg["ContainerName"] = meta.Name
-			e.Msg["ImageID"] = meta.ImageID
-			e.Msg["ImageName"] = meta.ImageName
+			e.Msg["containerId"] = meta.ContainerId
+			e.Msg["containerName"] = meta.Name
+			e.Msg["imageID"] = meta.ImageID
+			e.Msg["imageName"] = meta.ImageName
 		}
 	}
 }
