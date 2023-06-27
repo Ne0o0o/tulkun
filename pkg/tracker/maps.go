@@ -49,7 +49,7 @@ func (rb *Ringbuf) Start() {
 		record, err := rb.Reader.Read()
 		if err != nil {
 			if errors.Is(err, ringbuf.ErrClosed) {
-				log.Errorf("received signal, exiting ringbuf `%s`", rb.Name())
+				log.Infof("received signal, exiting ringbuf `%s`", rb.Name())
 				return
 			}
 			log.Errorf("ringbuf `%s` error %s", rb.Name(), err)
