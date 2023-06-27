@@ -2,7 +2,6 @@
 #include <tulkun.bpf.h>
 
 #include <vmlinux.h>
-#include <vmlinux_flavors.h>
 #include <vmlinux_missing.h>
 
 #include <bpf/bpf_endian.h>
@@ -215,8 +214,8 @@ int dns_filter_kernel(struct __sk_buff *skb)
         return DROP_PACKET;
 
     // drop packet if is not ingress (dns requests)
-    if (skb->ingress_ifindex != 0)
-        return DROP_PACKET;
+    //if (skb->ingress_ifindex != 0)
+    //    return DROP_PACKET;
 
     offset += DNSH_HLEN;
     struct dns_event_kernel *e;

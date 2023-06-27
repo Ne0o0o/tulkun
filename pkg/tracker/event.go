@@ -52,7 +52,6 @@ func (p *IP) string() string {
 // Command to string
 func (c *Command) string() string {
 	return unix.ByteSliceToString(c[:])
-	// return string(bytes.TrimRight(c[:], "\x00"))
 }
 
 /*
@@ -75,21 +74,6 @@ type EventDNSMsgRaw struct {
 	Comm    Command
 }
 
-type EventDNSMsg struct {
-	IFIndex uint32
-	Proto   uint32
-	SAddr   string
-	DAddr   string
-	SPort   uint16
-	DPort   uint16
-	DNS     string
-	Pid     uint32
-	Uid     uint32
-	Gid     uint32
-	Tgid    uint32
-	Comm    string
-}
-
 type EventDNS struct {
 	MsgRaw    EventDNSMsgRaw
 	Msg       map[string]interface{}
@@ -103,22 +87,6 @@ func (e EventDNS) Handle(b []byte) {
 		return
 	}
 	e.Msg = make(map[string]interface{})
-	/*
-		e.Msg = EventDNSMsg{
-			IFIndex: e.MsgRaw.IFIndex,
-			Proto:   e.MsgRaw.Proto,
-			SAddr:   e.MsgRaw.SAddr.string(),
-			DAddr:   e.MsgRaw.DAddr.string(),
-			SPort:   e.MsgRaw.SPort,
-			DPort:   e.MsgRaw.DPort,
-			DNS:     e.MsgRaw.DNS.string(),
-			Pid:     e.MsgRaw.Pid,
-			Uid:     e.MsgRaw.Uid,
-			Gid:     e.MsgRaw.Gid,
-			Tgid:    e.MsgRaw.Tgid,
-			Comm:    e.MsgRaw.Comm.string(),
-		}*/
-
 	e.Msg["IFIndex"] = e.MsgRaw.IFIndex
 	e.Msg["Proto"] = e.MsgRaw.Proto
 	e.Msg["SAddr"] = e.MsgRaw.SAddr.string()
@@ -130,7 +98,10 @@ func (e EventDNS) Handle(b []byte) {
 	e.Msg["UID"] = e.MsgRaw.Uid
 	e.Msg["GID"] = e.MsgRaw.Gid
 	e.Msg["Comm"] = e.MsgRaw.Comm.string()
-
+	ifindex, err := net.InterfaceByIndex(int(e.MsgRaw.IFIndex))
+	if err == nil {
+		e.Msg["IFIndexName"] = ifindex.Name
+	}
 	// enrich process relation fields
 	e.enrichProcess()
 
@@ -147,11 +118,14 @@ func (e EventDNS) enrichProcess() {
 
 	p := proc.NewProcess(int32(e.MsgRaw.Pid))
 	e.Msg["PPID"] = p.PPID
+	e.Msg["Cmdline"] = p.Cmdline
+	e.Msg["Cgroup"] = p.CgroupPath
 	if p.Runtime != nil {
 		if meta := p.InspectContainer(); meta != nil {
 			e.Msg["ContainerId"] = meta.ContainerId
 			e.Msg["ContainerName"] = meta.Name
-			e.Msg["ImageName"] = meta.Image
+			e.Msg["ImageID"] = meta.ImageID
+			e.Msg["ImageName"] = meta.ImageName
 		}
 	}
 }

@@ -20,16 +20,6 @@ type ProbeCollection struct {
 }
 
 func (pc *ProbeCollection) register(p []ProgInterface, m []MapInterface) {
-	/*
-		spec, ok := pm.CollectionSpec.Programs[v.EbpfName()]
-		if !ok {
-			log.Errorf("miss ebpf program `%s`", v.EbpfName())
-			return
-		}
-		pm.Programs[v.EbpfName()].SetProgram(spec)
-		log.Infof("find ebpf program `%s`", v.EbpfName())
-
-	*/
 	for _, v := range p {
 		pc.Programs[v.EbpfName()] = v
 	}
