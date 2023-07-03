@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"tulkun"
-	"tulkun/pkg/tracker"
+	"tulkun/pkg/trace"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -40,8 +40,8 @@ func main() {
 		After:                nil,
 		Action: func(c *cli.Context) error {
 			ctx, cancel := context.WithCancelCause(context.Background())
-			tracker.ProbeCollections.RunWithCancel(ctx)
-			defer tracker.ProbeCollections.Destroy()
+			trace.ProbeCollections.RunWithCancel(ctx)
+			defer trace.ProbeCollections.Destroy()
 			func(causeFunc context.CancelCauseFunc) {
 				c := make(chan os.Signal)
 				signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)

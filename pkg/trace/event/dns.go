@@ -1,4 +1,4 @@
-package tracker
+package event
 
 import (
 	"bytes"
@@ -7,8 +7,6 @@ import (
 	"io"
 	"net"
 
-	"tulkun/pkg/proc"
-
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -16,7 +14,7 @@ import (
 // basic data types define
 
 type (
-	// Domain DNS search domain
+	// Domain DNSEvent search domain
 	Domain [128]byte
 	IP     uint32
 	Port   uint16
@@ -54,12 +52,7 @@ func (c *Command) string() string {
 	return unix.ByteSliceToString(c[:])
 }
 
-/*
-func (d *portVal) fileName() string {
-	return string(bytes.Split(d.Comm[:], []byte("\x00"))[0])
-}*/
-
-type EventDNSMsgRaw struct {
+type DNSMsgRaw struct {
 	IFIndex uint32
 	Proto   uint32
 	SAddr   IP
@@ -74,14 +67,14 @@ type EventDNSMsgRaw struct {
 	Comm    Command
 }
 
-type EventDNS struct {
-	MsgRaw    EventDNSMsgRaw
+type DNSEvent struct {
+	MsgRaw    DNSMsgRaw
 	Msg       map[string]interface{}
 	Formatter func([]byte)
 	Output    io.Writer
 }
 
-func (e EventDNS) Handle(b []byte) {
+func (e DNSEvent) Handle(b []byte) {
 	if err := binary.Read(bytes.NewBuffer(b), binary.LittleEndian, &e.MsgRaw); err != nil {
 		log.Errorf("decode data failed `%s`", err)
 		return
@@ -93,39 +86,20 @@ func (e EventDNS) Handle(b []byte) {
 	e.Msg["daddr"] = e.MsgRaw.DAddr.string()
 	e.Msg["sport"] = e.MsgRaw.SPort
 	e.Msg["dport"] = e.MsgRaw.DPort
-	e.Msg["DNS"] = e.MsgRaw.DNS.string()
+	e.Msg["DNSEvent"] = e.MsgRaw.DNS.string()
 	e.Msg["PID"] = e.MsgRaw.Pid
 	e.Msg["uid"] = e.MsgRaw.Uid
 	e.Msg["gid"] = e.MsgRaw.Gid
 	e.Msg["comm"] = e.MsgRaw.Comm.string()
-	ifindex, err := net.InterfaceByIndex(int(e.MsgRaw.IFIndex))
+	iface, err := net.InterfaceByIndex(int(e.MsgRaw.IFIndex))
 	if err == nil {
-		e.Msg["ifindexName"] = ifindex.Name
+		e.Msg["ifname"] = iface.Name
 	}
 	// enrich process relation fields
-	e.enrichProcess()
+	enrichProcess(int32(e.MsgRaw.Pid), e.Msg)
 
 	// output msg
 	msgByte, _ := json.Marshal(e.Msg)
 	msgByte = append(msgByte, []byte("\n")...)
 	_, _ = e.Output.Write(msgByte)
-}
-
-func (e EventDNS) enrichProcess() {
-	if e.MsgRaw.Pid == 0 {
-		return
-	}
-
-	p := proc.NewProcess(int32(e.MsgRaw.Pid))
-	e.Msg["PPID"] = p.PPID
-	e.Msg["cmdline"] = p.Cmdline
-	e.Msg["cgroup"] = p.CgroupPath
-	if p.Runtime != nil {
-		if meta := p.InspectContainer(); meta != nil {
-			e.Msg["containerId"] = meta.ContainerId
-			e.Msg["containerName"] = meta.Name
-			e.Msg["imageID"] = meta.ImageID
-			e.Msg["imageName"] = meta.ImageName
-		}
-	}
 }

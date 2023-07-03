@@ -3,6 +3,7 @@
 
 #define DNS_DATA_BUF 128
 #define COMM_DATA_BUF 64
+#define FILENAME_DATA_LEN 128
 
 #define ETH_HLEN sizeof(struct ethhdr)
 #define IPH_HLEN sizeof(struct iphdr)
@@ -37,6 +38,12 @@ struct dns_event_user
     u16 sport;
     u16 dport;
     char dns[DNS_DATA_BUF];
+};
+
+struct execve_event
+{
+    u32 pid;
+    char filename[FILENAME_DATA_LEN];
 };
 
 struct dns_event_kernel

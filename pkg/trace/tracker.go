@@ -1,4 +1,4 @@
-package tracker
+package trace
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"tulkun"
+	"tulkun/pkg/trace/event"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
@@ -21,7 +22,7 @@ type ProbeCollection struct {
 
 func (pc *ProbeCollection) register(p []ProgInterface, m []MapInterface) {
 	for _, v := range p {
-		pc.Programs[v.EbpfName()] = v
+		pc.Programs[v.Name()] = v
 	}
 
 	for _, v := range m {
@@ -32,9 +33,11 @@ func (pc *ProbeCollection) register(p []ProgInterface, m []MapInterface) {
 func (pc *ProbeCollection) filter(cs *ebpf.CollectionSpec) {
 	// filter ebpf programs
 	for name := range pc.Programs {
-		if spec, ok := cs.Programs[name]; ok {
+		prog := pc.Programs[name]
+		if spec, ok := cs.Programs[prog.FuncName()]; ok {
 			pc.CollectionSpec.Programs[name] = spec
 		} else {
+			log.Infof("drop program `%s`", prog.Name())
 			delete(cs.Programs, name)
 		}
 	}
@@ -58,8 +61,8 @@ func (pc *ProbeCollection) loadCollection() {
 	}
 	pc.Collection = col
 	for name := range pc.Programs {
-		a := pc.Programs[name]
-		a.SetProgram(pc.Collection.Programs[name], pc.CollectionSpec.Programs[name])
+		prog := pc.Programs[name]
+		prog.SetProgram(pc.Collection.Programs[name], pc.CollectionSpec.Programs[name])
 	}
 	for name := range pc.Maps {
 		pc.Maps[name].SetMap(pc.Collection.Maps[name], pc.CollectionSpec.Maps[name])
@@ -103,20 +106,31 @@ func init() {
 	ProbeCollections.register(
 		[]ProgInterface{
 			&Kprobe{
-				EbpfFuncName:   "kprobe_udp_sendmsg",
-				AttachFuncName: "udp_sendmsg",
+				ProbeName:    "kprobe/udp_sendmsg",
+				EbpfFuncName: "kprobe_udp_sendmsg",
+				AttachPoint:  "udp_sendmsg",
 			},
 			&SocketFilter{
+				ProbeName:    "socket/dns_filter",
 				EbpfFuncName: "dns_filter_kernel",
+			}, &Tracepoint{
+				ProbeName:    "tracepoint/syscalls/sys_enter_openat",
+				EbpfFuncName: "tracepoint_openat",
+				AttachGroup:  "syscalls",
+				AttachPoint:  "sys_enter_openat",
+				Description:  "",
 			},
 		},
 		[]MapInterface{
 			&Ringbuf{
 				EbpfMapName:  "socket_events",
-				EventHandler: EventDNS{Output: os.Stdout}.Handle,
+				EventHandler: event.DNSEvent{Output: os.Stdout}.Handle,
 			},
 			&HashMap{
 				EbpfMapName: "ports_process",
+			}, &Ringbuf{
+				EbpfMapName:  "execve_events",
+				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
 			},
 		},
 	)
