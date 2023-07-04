@@ -53,7 +53,11 @@ func (e ExecveEvent) Handle(b []byte) {
 	}
 	e.Msg = make(map[string]interface{})
 	e.Msg["PID"] = e.MsgRaw.Pid
+	e.Msg["uid"] = e.MsgRaw.Uid
+	e.Msg["gid"] = e.MsgRaw.Gid
 	e.Msg["filename"] = e.MsgRaw.Filename.string()
+	e.Msg["argv"] = e.MsgRaw.Argv.string()
+	e.Msg["envp"] = e.MsgRaw.Envp.string()
 	// enrich process relation fields
 	// enrichProcess(int32(e.MsgRaw.Pid), e.Msg)
 

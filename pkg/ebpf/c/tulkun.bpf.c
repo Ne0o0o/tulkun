@@ -62,7 +62,7 @@ int BPF_KPROBE(kprobe_udp_sendmsg, struct sock *sk)
         val.tgid = (u32)pid_tgid;
         val.uid = (u32)uid_gid;
         val.gid = uid_gid >> 32;
-        bpf_get_current_comm(val.comm, COMM_DATA_BUF);
+        bpf_get_current_comm(val.comm, COMM_DATA_LEN);
         // Write the value into the eBPF table:
         bpf_map_update_elem(&ports_process, &key, &val, BPF_ANY);
     }
@@ -172,7 +172,7 @@ int dns_filter_kernel(struct __sk_buff *skb)
     e->proto = IPPROTO_UDP;
 
     u32 i;
-    for (i = 0; i < DNS_DATA_BUF; i++)
+    for (i = 0; i < DNS_DATA_LEN; i++)
     {
         bpf_skb_load_bytes(skb, offset + i, &e->dns[i], 1);
         if (e->dns[i] == '\0')
