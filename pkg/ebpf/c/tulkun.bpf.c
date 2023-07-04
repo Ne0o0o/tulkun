@@ -15,7 +15,7 @@
 struct
 {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 256 * 1024 /* 256 KB */);
+    __uint(max_entries, 1024 * 512 /* 256 KB */);
 } execve_events SEC(".maps");
 
 /* BPF ringbuf map for dns socket filter output event */
@@ -70,21 +70,28 @@ int BPF_KPROBE(kprobe_udp_sendmsg, struct sock *sk)
 }
 
 SEC("tracepoint/syscalls/sys_enter_execve")
-int tracepoint_openat(struct trace_event_raw_sys_enter *ctx)
+int tracepoint_execve(struct trace_event_raw_sys_enter *ctx)
 {
+    // int execve(const char *filename, char *const argv[], char *const envp[])
     struct execve_event *e;
     e = bpf_ringbuf_reserve(&execve_events, sizeof(*e), 0);
     if (!e)
     {
         return 0;
     }
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 uid_gid = bpf_get_current_uid_gid();
+    e->pid = pid_tgid >> 32;
+    e->tgid = (u32)pid_tgid;
+    e->uid = (u32)uid_gid;
+    e->gid = uid_gid >> 32;
 
-    e->pid = bpf_get_current_pid_tgid() >> 32;
-
-    char *fn_ptr;
-    fn_ptr = (char *)(ctx->args[1]);
+    char *fn_ptr = (char *)(ctx->args[0]);
     bpf_core_read_user_str(&e->filename, sizeof(e->filename), fn_ptr);
-
+    char *argv_ptr = (char *)(ctx->args[1]);
+    bpf_core_read_user_str(&e->argv, sizeof(e->argv), argv_ptr);
+    char *envp_ptr = (char *)(ctx->args[2]);
+    bpf_core_read_user_str(&e->envp, sizeof(e->envp), envp_ptr);
     bpf_ringbuf_submit(e, 0);
 
     return 0;

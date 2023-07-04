@@ -1,8 +1,8 @@
 // +build ignore
 #include <vmlinux.h>
 
-#define DNS_DATA_BUF 128
-#define COMM_DATA_BUF 64
+#define DNS_DATA_LEN 128
+#define COMM_DATA_LEN 64
 #define FILENAME_DATA_LEN 128
 
 #define ETH_HLEN sizeof(struct ethhdr)
@@ -26,7 +26,7 @@ struct port_val
     u32 uid;
     u32 gid;
     u32 tgid;
-    char comm[COMM_DATA_BUF];
+    char comm[COMM_DATA_LEN];
 };
 
 struct dns_event_user
@@ -37,13 +37,18 @@ struct dns_event_user
     u32 daddr;
     u16 sport;
     u16 dport;
-    char dns[DNS_DATA_BUF];
+    char dns[DNS_DATA_LEN];
 };
 
 struct execve_event
 {
     u32 pid;
+    u32 uid;
+    u32 gid;
+    u32 tgid;
     char filename[FILENAME_DATA_LEN];
+    char argv[128];
+    char envp[128];
 };
 
 struct dns_event_kernel
@@ -54,12 +59,12 @@ struct dns_event_kernel
     u32 daddr;
     u16 sport;
     u16 dport;
-    char dns[DNS_DATA_BUF];
+    char dns[DNS_DATA_LEN];
     u32 pid;
     u32 uid;
     u32 gid;
     u32 tgid;
-    char comm[COMM_DATA_BUF];
+    char comm[COMM_DATA_LEN];
 };
 
 struct dnshdr

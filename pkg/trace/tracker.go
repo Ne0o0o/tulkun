@@ -114,11 +114,10 @@ func init() {
 				ProbeName:    "socket/dns_filter",
 				EbpfFuncName: "dns_filter_kernel",
 			}, &Tracepoint{
-				ProbeName:    "tracepoint/syscalls/sys_enter_openat",
-				EbpfFuncName: "tracepoint_openat",
+				ProbeName:    "tracepoint/syscalls/sys_enter_execve",
+				EbpfFuncName: "tracepoint_execve",
 				AttachGroup:  "syscalls",
-				AttachPoint:  "sys_enter_openat",
-				Description:  "",
+				AttachPoint:  "sys_enter_execve",
 			},
 		},
 		[]MapInterface{
