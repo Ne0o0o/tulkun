@@ -1,5 +1,6 @@
 // +build ignore
 #include <tulkun.bpf.h>
+#include <buffer.h>
 
 #include <vmlinux.h>
 #include <vmlinux_missing.h>
@@ -73,7 +74,7 @@ SEC("tracepoint/syscalls/sys_enter_execve")
 int tracepoint_execve(struct trace_event_raw_sys_enter *ctx)
 {
     // int execve(const char *filename, char *const argv[], char *const envp[])
-    struct execve_event *e;
+    struct execve_event_new *e;
     e = bpf_ringbuf_reserve(&execve_events, sizeof(*e), 0);
     if (!e)
     {
@@ -88,10 +89,13 @@ int tracepoint_execve(struct trace_event_raw_sys_enter *ctx)
 
     char *fn_ptr = (char *)(ctx->args[0]);
     bpf_core_read_user_str(&e->filename, sizeof(e->filename), fn_ptr);
-    char *argv_ptr = (char *)(ctx->args[1]);
+    save_str_arr_to_buf(&e->argv, (const char *const *)ctx->args[1] /*argv*/);
+    /*
+    char *argv_ptr = (void *)(ctx->args[1]);
     bpf_core_read_user_str(&e->argv, sizeof(e->argv), argv_ptr);
-    char *envp_ptr = (char *)(ctx->args[2]);
+    char *envp_ptr = (void *)(ctx->args[2]);
     bpf_core_read_user_str(&e->envp, sizeof(e->envp), envp_ptr);
+    */
     bpf_ringbuf_submit(e, 0);
 
     return 0;

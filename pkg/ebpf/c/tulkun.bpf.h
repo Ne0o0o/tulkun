@@ -1,5 +1,6 @@
 // +build ignore
 #include <vmlinux.h>
+#include <buffer.h>
 
 #define DNS_DATA_LEN 128
 #define COMM_DATA_LEN 64
@@ -75,4 +76,14 @@ struct dnshdr
     u16 answerrr;
     u16 authrr;
     u16 addrr;
+};
+
+struct execve_event_new
+{
+    u32 pid;
+    u32 uid;
+    u32 gid;
+    u32 tgid;
+    char filename[FILENAME_DATA_LEN];
+    buffer_data_t *argv;
 };

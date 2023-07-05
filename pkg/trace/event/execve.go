@@ -7,13 +7,6 @@ import (
 	"io"
 
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
-)
-
-type (
-	Filename [128]byte
-	Argv     [128]byte
-	Envp     [128]byte
 )
 
 type ExecveMsgRaw struct {
@@ -22,21 +15,8 @@ type ExecveMsgRaw struct {
 	Gid      uint32
 	Tgid     uint32
 	Filename Filename
-	Argv     Argv
-	Envp     Envp
-}
-
-func (fn *Filename) string() string {
-	//return string(bytes.Split(fn[:], []byte("\x00"))[0])
-	return unix.ByteSliceToString(fn[:])
-}
-
-func (argv *Argv) string() string {
-	return unix.ByteSliceToString(argv[:])
-}
-
-func (envp *Envp) string() string {
-	return unix.ByteSliceToString(envp[:])
+	Argv     BufArrStr
+	// Envp     Envp
 }
 
 type ExecveEvent struct {
@@ -56,8 +36,8 @@ func (e ExecveEvent) Handle(b []byte) {
 	e.Msg["uid"] = e.MsgRaw.Uid
 	e.Msg["gid"] = e.MsgRaw.Gid
 	e.Msg["filename"] = e.MsgRaw.Filename.string()
-	e.Msg["argv"] = e.MsgRaw.Argv.string()
-	e.Msg["envp"] = e.MsgRaw.Envp.string()
+	//e.Msg["argv"] = e.MsgRaw.Argv.string()
+	// e.Msg["envp"] = e.MsgRaw.Envp.string()
 	// enrich process relation fields
 	// enrichProcess(int32(e.MsgRaw.Pid), e.Msg)
 
