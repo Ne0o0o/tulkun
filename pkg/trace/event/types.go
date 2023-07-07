@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const BuffSize = 128
+const BuffSize = 38*64 + 1
 
 // basic data types define
 
@@ -18,13 +18,19 @@ type (
 	Port   uint16
 	// Command process commandline
 	Command  [64]byte
-	Filename [128]byte
-	Argv     [128]byte
-	Envp     [128]byte
+	Filename [64]byte
+
 	// BufArrStr [string count][str1 size][str1][str2 size][str2]...
-	BufArrStr struct {
-		offsite uint32
-		buffer  [BuffSize]byte
+	BufArrayStr struct {
+		offset uint32
+		buffer [BuffSize]byte
+	}
+	Process struct {
+		PID  uint32
+		UID  uint32
+		GID  uint32
+		TGID uint32
+		TTY  [64]byte
 	}
 )
 
@@ -63,10 +69,20 @@ func (fn *Filename) string() string {
 	return unix.ByteSliceToString(fn[:])
 }
 
-func (argv *Argv) string() string {
-	return unix.ByteSliceToString(argv[:])
-}
-
-func (envp *Envp) string() string {
-	return unix.ByteSliceToString(envp[:])
+func (ar *BufArrayStr) stringArray() (ret []string) {
+	// buf: [(u8)string count][(u32)str1 size][str1][(u32)str2 size][str2]...
+	var (
+		length        = ar.offset
+		offset uint32 = 1
+		i             = 0
+		num           = int(ar.buffer[0])
+	)
+	for offset < length && i < num {
+		size := binary.LittleEndian.Uint32(ar.buffer[offset : offset+4])
+		offset += 4
+		s := ar.buffer[offset : offset+size]
+		offset += size
+		ret = append(ret, string(s))
+	}
+	return
 }

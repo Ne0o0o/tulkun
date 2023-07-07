@@ -1,6 +1,5 @@
 // +build ignore
 #include <tulkun.bpf.h>
-#include <buffer.h>
 
 #include <vmlinux.h>
 #include <vmlinux_missing.h>
@@ -9,6 +8,8 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
+
+char _license[] SEC("license") = "GPL";
 
 #define DROP_PACKET 0
 #define PASS_PACKET -1
@@ -34,6 +35,14 @@ struct
     __type(value, struct port_val);
     __uint(max_entries, 512);
 } ports_process SEC(".maps");
+
+struct
+{
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __type(key, u64);
+    __type(value, buffer_data_t);
+    __uint(max_entries, 1024 * 512);
+} buffer_data_maps SEC(".maps");
 
 SEC("kprobe/udp_sendmsg")
 int BPF_KPROBE(kprobe_udp_sendmsg, struct sock *sk)
@@ -70,59 +79,7 @@ int BPF_KPROBE(kprobe_udp_sendmsg, struct sock *sk)
     return 0;
 }
 
-SEC("tracepoint/syscalls/sys_enter_execve")
-int tracepoint_execve(struct trace_event_raw_sys_enter *ctx)
-{
-    // int execve(const char *filename, char *const argv[], char *const envp[])
-    struct execve_event_new *e;
-    e = bpf_ringbuf_reserve(&execve_events, sizeof(*e), 0);
-    if (!e)
-    {
-        return 0;
-    }
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 uid_gid = bpf_get_current_uid_gid();
-    e->pid = pid_tgid >> 32;
-    e->tgid = (u32)pid_tgid;
-    e->uid = (u32)uid_gid;
-    e->gid = uid_gid >> 32;
-
-    char *fn_ptr = (char *)(ctx->args[0]);
-    bpf_core_read_user_str(&e->filename, sizeof(e->filename), fn_ptr);
-    save_str_arr_to_buf(&e->argv, (const char *const *)ctx->args[1] /*argv*/);
-    /*
-    char *argv_ptr = (void *)(ctx->args[1]);
-    bpf_core_read_user_str(&e->argv, sizeof(e->argv), argv_ptr);
-    char *envp_ptr = (void *)(ctx->args[2]);
-    bpf_core_read_user_str(&e->envp, sizeof(e->envp), envp_ptr);
-    */
-    bpf_ringbuf_submit(e, 0);
-
-    return 0;
-}
-
-SEC("tracepoint/syscalls/sys_enter_openat")
-int tracepoint_openat(struct trace_event_raw_sys_enter *ctx)
-{
-    struct execve_event *e;
-    e = bpf_ringbuf_reserve(&execve_events, sizeof(*e), 0);
-    if (!e)
-    {
-        return 0;
-    }
-
-    e->pid = bpf_get_current_pid_tgid() >> 32;
-
-    char *fn_ptr;
-    fn_ptr = (char *)(ctx->args[1]);
-    bpf_core_read_user_str(&e->filename, sizeof(e->filename), fn_ptr);
-
-    bpf_ringbuf_submit(e, 0);
-
-    return 0;
-}
-
-SEC("socket/sock_filter")
+SEC("socket")
 int dns_filter_kernel(struct __sk_buff *skb)
 {
     u16 offset = 0;
@@ -202,4 +159,115 @@ int dns_filter_kernel(struct __sk_buff *skb)
     return DROP_PACKET;
 }
 
-char _license[] SEC("license") = "GPL";
+__always_inline int base_program_data(process_data_t *data)
+{
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 uid_gid = bpf_get_current_uid_gid();
+    data->pid = pid_tgid >> 32;
+    data->tgid = (u32)pid_tgid;
+    data->uid = (u32)uid_gid;
+    data->gid = uid_gid >> 32;
+    return 1;
+}
+
+static buffer_data_t buf_zero = {};
+
+__always_inline buffer_data_t *get_buffer_cache(u64 id)
+{
+    int ret = bpf_map_update_elem(&buffer_data_maps, &id,
+                                  &buf_zero, BPF_NOEXIST);
+    if (ret < 0)
+    {
+        return 0;
+    }
+    return bpf_map_lookup_elem(&buffer_data_maps, &id);
+}
+
+__always_inline int delete_buffer_cache(u64 id)
+{
+    return bpf_map_delete_elem(&buffer_data_maps, &id);
+}
+
+__always_inline int save_str_arr_to_buf(buffer_data_t *buffer, const char __user *const __user *ptr)
+{
+    // Data saved to submit buf: [string count][str1 size][str1][str2 size][str2]...
+
+    u8 elem_num = 0;
+    if (buffer->buf_off > ARGS_BUF_SIZE - 1)
+        return 0;
+
+    // Save argument index
+    // event->args[event->buf_off] = index;
+
+    // Save space for number of elements (1 byte)
+    u32 orig_off = buffer->buf_off;
+    buffer->buf_off += 1;
+    if (ptr == NULL)
+        goto out;
+#pragma unroll
+    for (int i = 0; i < MAX_STR_ARR_ELEM; i++)
+    {
+        const char *argp = NULL;
+        bpf_probe_read(&argp, sizeof(argp), &ptr[i]);
+        if (!argp)
+            goto out;
+
+        if (buffer->buf_off > ARGS_BUF_SIZE - MAX_STRING_SIZE - sizeof(int))
+            // not enough space - return
+            goto out;
+
+        // Read into buffer
+        int sz =
+            bpf_probe_read_str(&(buffer->buf[buffer->buf_off + sizeof(int)]), MAX_STRING_SIZE, argp);
+        if (sz > 0)
+        {
+            if (buffer->buf_off > ARGS_BUF_SIZE - sizeof(int))
+                // Satisfy validator
+                goto out;
+            bpf_probe_read(&(buffer->buf[buffer->buf_off]), sizeof(int), &sz);
+            buffer->buf_off += sz + sizeof(int);
+            elem_num++;
+            continue;
+        }
+        else
+        {
+            goto out;
+        }
+    }
+out:
+    // save number of elements in the array
+    if (orig_off > ARGS_BUF_SIZE - 1)
+        return 0;
+    buffer->buf[orig_off] = elem_num;
+    return 1;
+}
+
+SEC("tracepoint/syscalls/sys_enter_execve")
+int tracepoint_sys_enter_execve(struct trace_event_raw_sys_enter *ctx)
+{
+    // int execve(const char *filename, char *const argv[], char *const envp[])
+    u64 id = bpf_get_current_pid_tgid();
+    buffer_data_t *buf = get_buffer_cache(id);
+    if (!buf)
+    {
+        return 0;
+    }
+    execve_event_t *e;
+    e = bpf_ringbuf_reserve(&execve_events, sizeof(*e), 0);
+    if (!e)
+    {
+        return 0;
+    }
+    if (!base_program_data(&e->process_info))
+    {
+        return 0;
+    }
+
+    bpf_core_read_user_str(&e->filename, sizeof(e->filename), (char *)(ctx->args[0]));
+    save_str_arr_to_buf(buf, (void *)(ctx->args[1]) /*argv*/);
+
+    bpf_probe_read(&e->argv, sizeof(buf), &buf);
+    bpf_ringbuf_submit(e, 0);
+    delete_buffer_cache(id);
+    return 1;
+}

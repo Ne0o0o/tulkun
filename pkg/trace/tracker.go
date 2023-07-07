@@ -115,7 +115,7 @@ func init() {
 				EbpfFuncName: "dns_filter_kernel",
 			}, &Tracepoint{
 				ProbeName:    "tracepoint/syscalls/sys_enter_execve",
-				EbpfFuncName: "tracepoint_execve",
+				EbpfFuncName: "tracepoint_sys_enter_execve",
 				AttachGroup:  "syscalls",
 				AttachPoint:  "sys_enter_execve",
 			},
@@ -127,6 +127,8 @@ func init() {
 			},
 			&HashMap{
 				EbpfMapName: "ports_process",
+			}, &HashMap{
+				EbpfMapName: "buffer_data_maps",
 			}, &Ringbuf{
 				EbpfMapName:  "execve_events",
 				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,

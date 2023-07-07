@@ -10,12 +10,9 @@ import (
 )
 
 type ExecveMsgRaw struct {
-	Pid      uint32
-	Uid      uint32
-	Gid      uint32
-	Tgid     uint32
+	Process  Process
 	Filename Filename
-	Argv     BufArrStr
+	Argv     BufArrayStr
 	// Envp     Envp
 }
 
@@ -32,11 +29,11 @@ func (e ExecveEvent) Handle(b []byte) {
 		return
 	}
 	e.Msg = make(map[string]interface{})
-	e.Msg["PID"] = e.MsgRaw.Pid
-	e.Msg["uid"] = e.MsgRaw.Uid
-	e.Msg["gid"] = e.MsgRaw.Gid
+	e.Msg["PID"] = e.MsgRaw.Process.PID
+	e.Msg["uid"] = e.MsgRaw.Process.UID
+	e.Msg["gid"] = e.MsgRaw.Process.GID
 	e.Msg["filename"] = e.MsgRaw.Filename.string()
-	//e.Msg["argv"] = e.MsgRaw.Argv.string()
+	e.Msg["argv"] = e.MsgRaw.Argv.stringArray()
 	// e.Msg["envp"] = e.MsgRaw.Envp.string()
 	// enrich process relation fields
 	// enrichProcess(int32(e.MsgRaw.Pid), e.Msg)
