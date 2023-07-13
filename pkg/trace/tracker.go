@@ -38,15 +38,19 @@ func (pc *ProbeCollection) filter(cs *ebpf.CollectionSpec) {
 			pc.CollectionSpec.Programs[name] = spec
 		} else {
 			log.Infof("drop program `%s`", prog.Name())
-			delete(cs.Programs, name)
+			// delete(cs.Programs, name)
 		}
 	}
 	// filter ebpf maps
+	if spec, ok := cs.Maps[".bss"]; ok {
+		pc.CollectionSpec.Maps[".bss"] = spec
+	}
+
 	for name := range pc.Maps {
 		if spec, ok := cs.Maps[name]; ok {
 			pc.CollectionSpec.Maps[name] = spec
 		} else {
-			delete(cs.Maps, name)
+			log.Infof("drop maps `%s`", name)
 		}
 	}
 }
@@ -131,6 +135,9 @@ func init() {
 				EbpfMapName: "buffer_data_maps",
 			}, &Ringbuf{
 				EbpfMapName:  "execve_events",
+				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
+			}, &PerfRing{
+				EbpfMapName:  " execve_perf",
 				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
 			},
 		},

@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type ExecveMsgRaw struct {
@@ -24,8 +23,10 @@ type ExecveEvent struct {
 }
 
 func (e ExecveEvent) Handle(b []byte) {
+	fmt.Println(len(b), b)
+	return
 	if err := binary.Read(bytes.NewBuffer(b), binary.LittleEndian, &e.MsgRaw); err != nil {
-		log.Errorf("decode data failed `%s`", err)
+		// log.Errorf("decode data failed `%s`", err)
 		return
 	}
 	e.Msg = make(map[string]interface{})
