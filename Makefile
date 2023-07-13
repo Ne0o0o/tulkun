@@ -164,6 +164,18 @@ tulkun-ebpf: $(OUTPUT_DIR)/tulkun.bpf.o
 				-o $@ \
 				./cmd/tulkun-ebpf
 
+.PHONY: test
+test: $(OUTPUT_DIR)/tulkun.bpf.o
+	CC=$(CMD_CLANG) \
+		CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
+		CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \
+                GOARCH=$(GOARCH) \
+				$(CMD_GO) build \
+				-tags $(GO_TAGS_EBPF) \
+				-ldflags=$(GO_LDFLAGS_EBPF) \
+				-o $@ \
+				./cmd/tulkun-test
+
 .PHONY: clean
 clean:
 	$(CMD_RM) -rf $(OUTPUT_DIR)

@@ -1,4 +1,4 @@
-package tracker
+package trace
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"tulkun"
+	"tulkun/pkg/trace/event"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
@@ -20,18 +21,8 @@ type ProbeCollection struct {
 }
 
 func (pc *ProbeCollection) register(p []ProgInterface, m []MapInterface) {
-	/*
-		spec, ok := pm.CollectionSpec.Programs[v.EbpfName()]
-		if !ok {
-			log.Errorf("miss ebpf program `%s`", v.EbpfName())
-			return
-		}
-		pm.Programs[v.EbpfName()].SetProgram(spec)
-		log.Infof("find ebpf program `%s`", v.EbpfName())
-
-	*/
 	for _, v := range p {
-		pc.Programs[v.EbpfName()] = v
+		pc.Programs[v.Name()] = v
 	}
 
 	for _, v := range m {
@@ -42,18 +33,24 @@ func (pc *ProbeCollection) register(p []ProgInterface, m []MapInterface) {
 func (pc *ProbeCollection) filter(cs *ebpf.CollectionSpec) {
 	// filter ebpf programs
 	for name := range pc.Programs {
-		if spec, ok := cs.Programs[name]; ok {
+		prog := pc.Programs[name]
+		if spec, ok := cs.Programs[prog.FuncName()]; ok {
 			pc.CollectionSpec.Programs[name] = spec
 		} else {
-			delete(cs.Programs, name)
+			log.Infof("drop program `%s`", prog.Name())
+			// delete(cs.Programs, name)
 		}
 	}
 	// filter ebpf maps
+	if spec, ok := cs.Maps[".bss"]; ok {
+		pc.CollectionSpec.Maps[".bss"] = spec
+	}
+
 	for name := range pc.Maps {
 		if spec, ok := cs.Maps[name]; ok {
 			pc.CollectionSpec.Maps[name] = spec
 		} else {
-			delete(cs.Maps, name)
+			log.Infof("drop maps `%s`", name)
 		}
 	}
 }
@@ -68,8 +65,8 @@ func (pc *ProbeCollection) loadCollection() {
 	}
 	pc.Collection = col
 	for name := range pc.Programs {
-		a := pc.Programs[name]
-		a.SetProgram(pc.Collection.Programs[name], pc.CollectionSpec.Programs[name])
+		prog := pc.Programs[name]
+		prog.SetProgram(pc.Collection.Programs[name], pc.CollectionSpec.Programs[name])
 	}
 	for name := range pc.Maps {
 		pc.Maps[name].SetMap(pc.Collection.Maps[name], pc.CollectionSpec.Maps[name])
@@ -113,20 +110,35 @@ func init() {
 	ProbeCollections.register(
 		[]ProgInterface{
 			&Kprobe{
-				EbpfFuncName:   "kprobe_udp_sendmsg",
-				AttachFuncName: "udp_sendmsg",
+				ProbeName:    "kprobe/udp_sendmsg",
+				EbpfFuncName: "kprobe_udp_sendmsg",
+				AttachPoint:  "udp_sendmsg",
 			},
 			&SocketFilter{
+				ProbeName:    "socket/dns_filter",
 				EbpfFuncName: "dns_filter_kernel",
+			}, &Tracepoint{
+				ProbeName:    "tracepoint/syscalls/sys_enter_execve",
+				EbpfFuncName: "tracepoint_sys_enter_execve",
+				AttachGroup:  "syscalls",
+				AttachPoint:  "sys_enter_execve",
 			},
 		},
 		[]MapInterface{
 			&Ringbuf{
 				EbpfMapName:  "socket_events",
-				EventHandler: EventDNS{Output: os.Stdout}.Handle,
+				EventHandler: event.DNSEvent{Output: os.Stdout}.Handle,
 			},
 			&HashMap{
 				EbpfMapName: "ports_process",
+			}, &HashMap{
+				EbpfMapName: "buffer_data_maps",
+			}, &Ringbuf{
+				EbpfMapName:  "execve_events",
+				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
+			}, &PerfRing{
+				EbpfMapName:  " execve_perf",
+				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
 			},
 		},
 	)

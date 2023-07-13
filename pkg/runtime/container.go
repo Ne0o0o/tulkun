@@ -20,8 +20,8 @@ const (
 type ContainerMeta struct {
 	ContainerId string
 	Name        string
-	Image       string
-	ImageDigest string
+	ImageID     string
+	ImageName   string
 	// Pod         PodMetadata
 }
 

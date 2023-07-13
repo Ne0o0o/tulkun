@@ -1,34 +1,56 @@
-package tracker
+package trace
 
 import (
 	"errors"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/ringbuf"
 	log "github.com/sirupsen/logrus"
 )
-
-type MetaKey struct {
-	Proto uint32
-	SAddr uint32
-	DAddr uint32
-	SPort uint16
-	DPort uint16
-}
-
-type ProcessVal struct {
-	Pid  uint32
-	Uid  uint32
-	Gid  uint32
-	Tgid uint32
-	Comm [64]byte
-}
 
 type MapInterface interface {
 	Name() string
 	SetMap(m *ebpf.Map, spec *ebpf.MapSpec)
 	Start()
 	Destroy()
+}
+
+type PerfRing struct {
+	EbpfMapName  string
+	MapSpec      *ebpf.MapSpec
+	Map          *ebpf.Map
+	Reader       *perf.Reader
+	EventHandler func([]byte)
+}
+
+func (pr *PerfRing) Name() string {
+	return pr.EbpfMapName
+}
+
+func (pr *PerfRing) Start() {
+	pr.Reader, _ = perf.NewReader(pr.Map, 1024)
+	for {
+		record, err := pr.Reader.Read()
+		if err != nil {
+			if errors.Is(err, perf.ErrClosed) {
+				log.Infof("received signal, exiting perf ring `%s`", pr.Name())
+				return
+			}
+			log.Errorf("perf event `%s` error %s", pr.Name(), err)
+			continue
+		}
+		pr.EventHandler(record.RawSample)
+	}
+}
+
+func (pr *PerfRing) Destroy() {
+	_ = pr.Reader.Close()
+}
+
+func (pr *PerfRing) SetMap(m *ebpf.Map, spec *ebpf.MapSpec) {
+	pr.Map = m
+	pr.MapSpec = spec
 }
 
 type Ringbuf struct {
