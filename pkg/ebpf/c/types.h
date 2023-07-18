@@ -6,6 +6,8 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 
+#define MAX_PERCPU_BUFSIZE (1 << 15)
+
 #define TASK_COMM_LEN 16
 #define ARGS_BUF_SIZE 32000 // copy from tracee
 
@@ -23,6 +25,11 @@
 #define MAX_STR_ARR_ELEM 38 // TODO: turn this into global variables set w/ libbpfgo
 #define MAX_STRING_SIZE 64  // same as PATH_MAX
 #define MAX_ELEMENT_SIZE sizeof(struct sockaddr_un)
+
+typedef struct args
+{
+    unsigned long args[6];
+} args_t;
 
 struct port_key
 {
@@ -118,10 +125,10 @@ typedef struct task_context
     u32 uid;
     u32 mnt_id;
     u32 pid_id;
+    char tty[TASK_COMM_LEN];
     char comm[TASK_COMM_LEN];
     char uts_name[TASK_COMM_LEN];
     u32 flags;
-
 } task_context_t;
 
 typedef struct event_context
@@ -134,24 +141,20 @@ typedef struct event_context
                       // s64 retval;
                       // u32 stack_id;
     u16 processor_id; // The ID of the processor which processed the event
-    u8 argnum;
+    u32 argnum;
 } event_context_t;
 
 typedef struct event_data
 {
     event_context_t context;
     buffer_data_t buf;
-    //  struct task_struct *task;
     u64 param_types;
 } event_data_t;
 
 typedef struct program_data
 {
-    // config_entry_t *config;
-    // task_info_t *task_info;
     struct task_struct *task;
-    event_data_t *event; // event data to submit
-    // scratch_t *scratch;
+    event_data_t *event;
     void *ctx;
 } program_data_t;
 

@@ -132,12 +132,12 @@ func init() {
 			&HashMap{
 				EbpfMapName: "ports_process",
 			}, &HashMap{
-				EbpfMapName: "buffer_data_maps",
+				EbpfMapName: "event_data_map",
 			}, &Ringbuf{
 				EbpfMapName:  "execve_events",
 				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
 			}, &PerfRing{
-				EbpfMapName:  " execve_perf",
+				EbpfMapName:  "execve_perf",
 				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
 			},
 		},

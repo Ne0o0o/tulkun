@@ -1,11 +1,21 @@
 // +build ignore
-#include <common.h>
-#include <vmlinux.h>
-#include <types.h>
+#include <arch.h>
 #include <maps.h>
+#include <common.h>
+#include <types.h>
+
+#include <vmlinux.h>
 #include <vmlinux_missing.h>
+
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
+
+#define NO_SYSCALL -1
+
+static __always_inline int get_task_flags(struct task_struct *task)
+{
+    return READ_KERN(task->flags);
+}
 
 static __always_inline u64 get_task_start_time(struct task_struct *task)
 {
@@ -23,6 +33,24 @@ static __always_inline char *get_task_uts_name(struct task_struct *task)
     struct nsproxy *np = READ_KERN(task->nsproxy);
     struct uts_namespace *uts_ns = READ_KERN(np->uts_ns);
     return READ_KERN(uts_ns->name.nodename);
+}
+
+static __always_inline char *get_task_tty(struct task_struct *task)
+{
+    struct signal_struct *signal = READ_KERN(task->signal);
+    struct tty_struct *tty = READ_KERN(signal->tty);
+    return READ_KERN(tty->name);
+}
+
+static __always_inline int get_task_syscall_id(struct task_struct *task)
+{
+    // There is no originated syscall in kernel thread context
+    if (get_task_flags(task) & PF_KTHREAD)
+    {
+        return NO_SYSCALL;
+    }
+    struct pt_regs *regs = get_task_pt_regs(task);
+    return get_syscall_id_from_regs(regs);
 }
 
 static __always_inline int init_program_data(program_data_t *p, void *ctx)
@@ -63,6 +91,15 @@ static __always_inline int init_program_data(program_data_t *p, void *ctx)
         __builtin_memset(p->event->context.task.uts_name, 0, sizeof(p->event->context.task.uts_name));
         bpf_probe_read_str(&p->event->context.task.uts_name, TASK_COMM_LEN, uts_name);
     }
+
+    char *tty_name = get_task_tty(p->task);
+    if (tty_name)
+    {
+        __builtin_memset(p->event->context.task.tty, 0, sizeof(p->event->context.task.tty));
+        bpf_probe_read_str(&p->event->context.task.tty, TASK_COMM_LEN, tty_name);
+    }
+
+    p->event->context.syscall = get_task_syscall_id(p->task);
     p->event->context.ts = bpf_ktime_get_ns();
     p->event->context.argnum = 0;
     // current context
@@ -72,6 +109,8 @@ static __always_inline int init_program_data(program_data_t *p, void *ctx)
 
     // reset buf offset
     p->event->buf.buf_off = 0;
+    // reset flags
+    p->event->context.task.flags = 0;
     return 1;
 }
 
