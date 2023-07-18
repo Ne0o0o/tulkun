@@ -4,11 +4,16 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
 
-const BuffSize = 38*64 + 1
+const (
+	BuffSize    = 38*64 + 1
+	TaskCommLen = 16
+	MaxBufSize  = 1024 * 4
+)
 
 // basic data types define
 
@@ -25,12 +30,55 @@ type (
 		offset uint32
 		buffer [BuffSize]byte
 	}
-	Process struct {
-		PID  uint32
-		UID  uint32
-		GID  uint32
-		TGID uint32
-		TTY  [64]byte
+	/*
+		typedef struct task_context
+		{
+		    u64 start_time; // thread's start time
+		    u64 cgroup_id;
+		    u32 pid;       // PID as in the userspace term
+		    u32 tid;       // TID as in the userspace term
+		    u32 ppid;      // Parent PID as in the userspace term
+		    u32 host_pid;  // PID in host pid namespace
+		    u32 host_tid;  // TID in host pid namespace
+		    u32 host_ppid; // Parent PID in host pid namespace
+		    u32 uid;
+		    u32 mnt_id;
+		    u32 pid_id;
+			char tty[TASK_COMM_LEN];
+		    char comm[TASK_COMM_LEN];
+		    char uts_name[TASK_COMM_LEN];
+		    u32 flags;
+
+		} task_context_t;
+	*/
+	TaskContext struct {
+		StartTime uint64
+		CgroupID  uint64
+		PID       uint32
+		TID       uint32
+		PPID      uint32
+		HostPID   uint32
+		HostTID   uint32
+		HostPPID  uint32
+		UID       uint32
+		MntID     uint32
+		PIDID     uint32
+		TTY       [TaskCommLen]byte
+		Comm      [TaskCommLen]byte
+		UtsName   [TaskCommLen]byte
+		Flag      uint32
+	}
+
+	SyscallContext struct {
+		Timestamp   uint64
+		Task        TaskContext
+		Syscall     uint32
+		ProcessorID uint16
+		Argnum      uint32
+	}
+
+	StrArrayBuffer struct {
+		buffer []byte
 	}
 )
 
@@ -82,7 +130,43 @@ func (ar *BufArrayStr) stringArray() (ret []string) {
 		offset += 4
 		s := ar.buffer[offset : offset+size]
 		offset += size
-		ret = append(ret, string(s))
+		ret = append(ret, string(bytes.TrimRight(s[:], "\x00")))
 	}
 	return
+}
+
+func (sa *StrArrayBuffer) stringArray() (ret []string) {
+
+	var (
+		length        = uint32(len(sa.buffer))
+		offset uint32 = 1
+		i      uint8  = 0
+		num           = sa.buffer[0]
+	)
+	for ; offset < length && i < num; i++ {
+		size := binary.LittleEndian.Uint32(sa.buffer[offset : offset+4])
+		offset += 4
+		s := sa.buffer[offset : offset+size]
+		offset += size
+		ret = append(ret, string(bytes.TrimRight(s[:], "\x00")))
+	}
+	return
+}
+
+func (sa *StrArrayBuffer) string() string {
+	var (
+		length        = uint32(len(sa.buffer))
+		offset uint32 = 1
+		i      uint8  = 0
+		num           = sa.buffer[0]
+		ret    []string
+	)
+	for ; offset < length && i < num; i++ {
+		size := binary.LittleEndian.Uint32(sa.buffer[offset : offset+4])
+		offset += 4
+		s := sa.buffer[offset : offset+size]
+		offset += size
+		ret = append(ret, string(bytes.TrimRight(s[:], "\x00")))
+	}
+	return strings.Join(ret, " ")
 }

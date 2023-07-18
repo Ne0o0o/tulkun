@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"io"
+	"unsafe"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type ExecveMsgRaw struct {
-	Process  Process
-	Filename Filename
-	Argv     BufArrayStr
-	// Envp     Envp
+	Context SyscallContext
+	Buffer  StrArrayBuffer
 }
 
 type ExecveEvent struct {
@@ -23,21 +23,15 @@ type ExecveEvent struct {
 }
 
 func (e ExecveEvent) Handle(b []byte) {
-	fmt.Println(len(b), b)
-	return
-	if err := binary.Read(bytes.NewBuffer(b), binary.LittleEndian, &e.MsgRaw); err != nil {
-		// log.Errorf("decode data failed `%s`", err)
+	if err := binary.Read(bytes.NewBuffer(b[:unsafe.Sizeof(e.MsgRaw.Context)]), binary.LittleEndian, &e.MsgRaw.Context); err != nil {
+		log.Errorf("decode context failed `%s`", err)
 		return
 	}
-	e.Msg = make(map[string]interface{})
-	e.Msg["PID"] = e.MsgRaw.Process.PID
-	e.Msg["uid"] = e.MsgRaw.Process.UID
-	e.Msg["gid"] = e.MsgRaw.Process.GID
-	e.Msg["filename"] = e.MsgRaw.Filename.string()
-	e.Msg["argv"] = e.MsgRaw.Argv.stringArray()
-	// e.Msg["envp"] = e.MsgRaw.Envp.string()
+	e.MsgRaw.Buffer.buffer = b[unsafe.Sizeof(e.MsgRaw.Context):]
+	e.Msg = *e.MsgRaw.Context.fill()
+	e.Msg["argv"] = e.MsgRaw.Buffer.string()
 	// enrich process relation fields
-	// enrichProcess(int32(e.MsgRaw.Pid), e.Msg)
+	enrichProcess(int32(e.MsgRaw.Context.Task.HostPID), e.Msg)
 
 	// output msg
 	msgByte, _ := json.Marshal(e.Msg)

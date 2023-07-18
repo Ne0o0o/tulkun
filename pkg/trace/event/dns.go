@@ -44,7 +44,7 @@ func (e DNSEvent) Handle(b []byte) {
 	e.Msg["daddr"] = e.MsgRaw.DAddr.string()
 	e.Msg["sport"] = e.MsgRaw.SPort
 	e.Msg["dport"] = e.MsgRaw.DPort
-	e.Msg["DNSEvent"] = e.MsgRaw.DNS.string()
+	e.Msg["DNS"] = e.MsgRaw.DNS.string()
 	e.Msg["PID"] = e.MsgRaw.Pid
 	e.Msg["uid"] = e.MsgRaw.Uid
 	e.Msg["gid"] = e.MsgRaw.Gid

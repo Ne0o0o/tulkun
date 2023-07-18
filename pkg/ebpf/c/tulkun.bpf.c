@@ -1,8 +1,8 @@
 // +build ignore
 #include <tulkun.bpf.h>
+#include <common.h>
 #include <maps.h>
 #include <types.h>
-#include <common.h>
 
 #include <vmlinux.h>
 #include <vmlinux_missing.h>
@@ -142,15 +142,13 @@ int tracepoint_sys_enter_execve(struct trace_event_raw_sys_enter *ctx)
         return 0;
     }
     save_str_arr_to_buf(&p.event->buf, (void *)(ctx->args[1]) /*argv*/);
-
+    // p.event->context.syscall = 221;
     u32 size = sizeof(event_context_t) + p.event->buf.buf_off;
-
-    // inline bounds check to force compiler to use the register of size
-    asm volatile("if %[size] < %[max_size] goto +1;\n"
-                 "%[size] = %[max_size];\n"
-                 :
-                 : [size] "r"(size), [max_size] "i"(sizeof(event_context_t) + sizeof(buffer_data_t)));
-
+    if (size > sizeof(event_context_t) + MAX_BUF_SIZE - 1)
+    {
+        return 0;
+    }
+    // void *output_data = p.event;
     bpf_perf_event_output(ctx, &execve_perf, BPF_F_CURRENT_CPU, p.event, size);
     return 0;
 }
