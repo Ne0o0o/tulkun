@@ -76,6 +76,7 @@ static __always_inline int init_program_data(program_data_t *p, void *ctx)
     p->event->context.task.host_pid = pid_tgid >> 32;
     p->event->context.task.host_ppid = get_task_ppid(p->task);
     p->event->context.task.uid = bpf_get_current_uid_gid();
+    p->event->context.task.cgroup_id = bpf_get_current_cgroup_id();
 
     __builtin_memset(p->event->context.task.comm, 0, sizeof(p->event->context.task.comm));
     ret = bpf_get_current_comm(&p->event->context.task.comm, sizeof(p->event->context.task.comm));

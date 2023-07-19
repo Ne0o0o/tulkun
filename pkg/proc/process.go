@@ -30,7 +30,7 @@ func NewProcess(pid int32) *Process {
 	p.Cmdline, _ = proc.Cmdline()
 	p.CgroupPath = cgroups.Cgroup2PathFromPID(int(pid))
 	p.Cgroup = cgroups.LoadCgroup2FromPath(p.CgroupPath)
-	p.Runtime = runtime.SelectContainerRuntime(int(pid), p.CgroupPath)
+	p.Runtime = runtime.SelectContainerRuntime(p.CgroupPath)
 	return &p
 }
 

@@ -30,7 +30,7 @@ type ContainersInterface interface {
 	InspectContainerWithCgroup(cgroup string) *ContainerMeta
 }
 
-func SelectContainerRuntime(pid int, cgroup string) ContainersInterface {
+func SelectContainerRuntime(cgroup string) ContainersInterface {
 	// docker
 	if strings.Contains(cgroup, "docker") {
 		if _, ok := socketCollection.opt[Docker]; ok {
@@ -43,12 +43,13 @@ func SelectContainerRuntime(pid int, cgroup string) ContainersInterface {
 
 func register(name string, unixSocket string, register func(string) (ContainersInterface, error)) {
 	if _, err := os.Stat(unixSocket); err != nil {
-		log.Errorf("get runtime client `%s` socket error `%s`", name, unixSocket)
+		log.Infof("get runtime client `%s` socket error `%s` skip this...", name, unixSocket)
 		return
 	}
 	sock, err := register(unixSocket)
 	if err != nil {
-		log.Errorf("get runtime client `%s` socket error `%s`", name, unixSocket)
+		log.Infof("get runtime client `%s` socket error `%s` skip this...", name, unixSocket)
+		return
 	}
 	socketCollection.socketFD = unixSocket
 	socketCollection.opt[name] = sock
