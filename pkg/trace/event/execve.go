@@ -30,9 +30,8 @@ func (e ExecveEvent) Handle(b []byte) {
 	e.MsgRaw.Buffer.buffer = b[unsafe.Sizeof(e.MsgRaw.Context):]
 	e.Msg = *e.MsgRaw.Context.fill()
 	e.Msg["argv"] = e.MsgRaw.Buffer.string()
-	// enrich process relation fields
-	enrichProcess(int32(e.MsgRaw.Context.Task.HostPID), e.Msg)
-
+	// enrich runtime relation fields
+	enrichRuntime(e.MsgRaw.Context.Task.CgroupID, e.Msg)
 	// output msg
 	msgByte, _ := json.Marshal(e.Msg)
 	msgByte = append(msgByte, []byte("\n")...)

@@ -1,7 +1,9 @@
 package event
 
 import (
+	"tulkun/pkg/cgroups"
 	"tulkun/pkg/proc"
+	"tulkun/pkg/runtime"
 )
 
 func enrichProcess(pid int32, msg map[string]interface{}) {
@@ -19,6 +21,23 @@ func enrichProcess(pid int32, msg map[string]interface{}) {
 			msg["containerName"] = meta.Name
 			msg["imageId"] = meta.ImageID
 			msg["imageName"] = meta.ImageName
+		}
+	}
+}
+
+func enrichRuntime(cgroupId uint64, msg map[string]interface{}) {
+	cgroup := cgroups.Cgroup2PathFromInode(cgroupId)
+	if cgroup == "" {
+		return
+	}
+	if rt := runtime.SelectContainerRuntime(cgroup); rt != nil {
+		if meta := rt.InspectContainerWithCgroup(cgroup); meta != nil {
+			var container map[string]interface{}
+			container["containerId"] = meta.ContainerId
+			container["containerName"] = meta.Name
+			container["imageId"] = meta.ImageID
+			container["imageName"] = meta.ImageName
+			msg["runtime"] = container
 		}
 	}
 }
