@@ -1,15 +1,14 @@
 #ifndef __TYPES_H__
 #define __TYPES_H__
 
+#include <consts.h>
+
 #include <vmlinux.h>
 #include <vmlinux_missing.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 
-#define MAX_PERCPU_BUFSIZE (1 << 15)
-
 #define TASK_COMM_LEN 16
-#define ARGS_BUF_SIZE 32000 // copy from tracee
 
 #define DNS_DATA_LEN 128
 #define COMM_DATA_LEN 64
@@ -23,13 +22,18 @@
 
 #define MAX_BUF_SIZE 1024 * 4
 #define MAX_STR_ARR_ELEM 38 // TODO: turn this into global variables set w/ libbpfgo
-#define MAX_STRING_SIZE 64  // same as PATH_MAX
+#define MAX_STRING_LEN 64
 #define MAX_ELEMENT_SIZE sizeof(struct sockaddr_un)
 
 typedef struct args
 {
     unsigned long args[6];
 } args_t;
+
+typedef struct simple_buf
+{
+    u8 buf[MAX_PERCPU_BUFSIZE];
+} buf_t;
 
 struct port_key
 {
@@ -128,6 +132,8 @@ typedef struct task_context
     char tty[TASK_COMM_LEN];
     char comm[TASK_COMM_LEN];
     char uts_name[TASK_COMM_LEN];
+    char stdin[MAX_STRING_LEN];
+    char stdout[MAX_STRING_LEN];
     u32 flags;
 } task_context_t;
 

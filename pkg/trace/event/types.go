@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	BuffSize    = 38*64 + 1
-	TaskCommLen = 16
-	MaxBufSize  = 1024 * 4
+	BuffSize   = 38*64 + 1
+	TaskLen16  = 16
+	TaskLen64  = 64
+	MaxBufSize = 1024 * 4
 )
 
 // basic data types define
@@ -63,9 +64,11 @@ type (
 		UID       uint32
 		MntID     uint32
 		PIDID     uint32
-		TTY       [TaskCommLen]byte
-		Comm      [TaskCommLen]byte
-		UtsName   [TaskCommLen]byte
+		TTY       [TaskLen16]byte
+		Comm      [TaskLen16]byte
+		UtsName   [TaskLen16]byte
+		Stdin     [TaskLen64]byte
+		Stdout    [TaskLen64]byte
 		Flag      uint32
 	}
 
@@ -166,7 +169,8 @@ func (sa *StrArrayBuffer) string() string {
 		offset += 4
 		s := sa.buffer[offset : offset+size]
 		offset += size
-		ret = append(ret, string(bytes.TrimRight(s[:], "\x00")))
+		ret = append(ret, string(bytes.ReplaceAll(s[:], []byte("\x00"), []byte(" "))))
+		// ret = append(ret, string(bytes.TrimRight(s[:], "\x00")))
 	}
-	return strings.Join(ret, " ")
+	return strings.TrimSpace(strings.Join(ret, ""))
 }

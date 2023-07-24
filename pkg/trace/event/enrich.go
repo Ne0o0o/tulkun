@@ -32,7 +32,7 @@ func enrichRuntime(cgroupId uint64, msg map[string]interface{}) {
 	}
 	if rt := runtime.SelectContainerRuntime(cgroup); rt != nil {
 		if meta := rt.InspectContainerWithCgroup(cgroup); meta != nil {
-			var container map[string]interface{}
+			var container = make(map[string]interface{})
 			container["containerId"] = meta.ContainerId
 			container["containerName"] = meta.Name
 			container["imageId"] = meta.ImageID
