@@ -1,5 +1,6 @@
 // +build ignore
 #include <arch.h>
+#include <filesystem.h>
 #include <maps.h>
 #include <common.h>
 #include <types.h>
@@ -86,23 +87,42 @@ static __always_inline int init_program_data(program_data_t *p, void *ctx)
         // tracee_log(ctx, BPF_LOG_LVL_ERROR, BPF_LOG_ID_GET_CURRENT_COMM, ret);
         return 0;
     }
+    // uts name
     char *uts_name = get_task_uts_name(p->task);
     if (uts_name)
     {
         __builtin_memset(p->event->context.task.uts_name, 0, sizeof(p->event->context.task.uts_name));
         bpf_probe_read_str(&p->event->context.task.uts_name, TASK_COMM_LEN, uts_name);
     }
-
+    // tty name
     char *tty_name = get_task_tty(p->task);
     if (tty_name)
     {
         __builtin_memset(p->event->context.task.tty, 0, sizeof(p->event->context.task.tty));
         bpf_probe_read_str(&p->event->context.task.tty, TASK_COMM_LEN, tty_name);
     }
-
+    // syscall num
     p->event->context.syscall = get_task_syscall_id(p->task);
     p->event->context.ts = bpf_ktime_get_ns();
     p->event->context.argnum = 0;
+    // stdin and stdout
+    struct file *stdin_f = get_task_fd(p->task, 0);
+    if (stdin_f)
+    {
+        struct path path = READ_KERN(stdin_f->f_path);
+        void *stdin = get_path_str(__builtin_preserve_access_index(&path));
+        __builtin_memset(p->event->context.task.stdin, 0, sizeof(p->event->context.task.stdin));
+        bpf_probe_read_str(&p->event->context.task.stdin, MAX_STRING_LEN, stdin);
+    }
+
+    struct file *stdout_f = get_task_fd(p->task, 1);
+    if (stdout_f)
+    {
+        struct path path = READ_KERN(stdout_f->f_path);
+        void *stdout = get_path_str(__builtin_preserve_access_index(&path));
+        __builtin_memset(p->event->context.task.stdout, 0, sizeof(p->event->context.task.stdout));
+        bpf_probe_read_str(&p->event->context.task.stdout, MAX_STRING_LEN, stdout);
+    }
     // current context
 
     p->event->context.processor_id = (u16)bpf_get_smp_processor_id();
@@ -139,13 +159,13 @@ static __always_inline int save_str_arr_to_buf(buffer_data_t *buffer, const char
         if (!argp)
             goto out;
 
-        if (buffer->buf_off > MAX_BUF_SIZE - MAX_STRING_SIZE - sizeof(int))
+        if (buffer->buf_off > MAX_BUF_SIZE - MAX_STRING_LEN - sizeof(int))
             // not enough space - return
             goto out;
 
         // Read into buffer
         int sz =
-            bpf_probe_read_str(&(buffer->buf[buffer->buf_off + sizeof(int)]), MAX_STRING_SIZE, argp);
+            bpf_probe_read_str(&(buffer->buf[buffer->buf_off + sizeof(int)]), MAX_STRING_LEN, argp);
         if (sz > 0)
         {
             if (buffer->buf_off > MAX_BUF_SIZE - sizeof(int))

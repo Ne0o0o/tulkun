@@ -15,9 +15,9 @@ func (tc TaskContext) fill() *map[string]interface{} {
 		UID       uint32
 		MntID     uint32
 		PIDID     uint32
-		TTY       [TaskCommLen]byte
-		Comm      [TaskCommLen]byte
-		UtsName   [TaskCommLen]byte
+		TTY       [TaskLen16]byte
+		Comm      [TaskLen16]byte
+		UtsName   [TaskLen16]byte
 		Flag      uint32
 	*/
 	var task = make(map[string]interface{})
@@ -35,6 +35,8 @@ func (tc TaskContext) fill() *map[string]interface{} {
 	task["tty"] = unix.ByteSliceToString(tc.TTY[:])
 	task["comm"] = unix.ByteSliceToString(tc.Comm[:])
 	task["utsName"] = unix.ByteSliceToString(tc.UtsName[:])
+	task["stdin"] = unix.ByteSliceToString(tc.Stdin[:])
+	task["stdout"] = unix.ByteSliceToString(tc.Stdout[:])
 	task["flag"] = tc.Flag
 	return &task
 }
