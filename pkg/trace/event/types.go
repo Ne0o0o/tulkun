@@ -26,11 +26,6 @@ type (
 	Command  [64]byte
 	Filename [64]byte
 
-	// BufArrStr [string count][str1 size][str1][str2 size][str2]...
-	BufArrayStr struct {
-		offset uint32
-		buffer [BuffSize]byte
-	}
 	/*
 		typedef struct task_context
 		{
@@ -67,8 +62,8 @@ type (
 		TTY       [TaskLen16]byte
 		Comm      [TaskLen16]byte
 		UtsName   [TaskLen16]byte
-		Stdin     [TaskLen64]byte
-		Stdout    [TaskLen64]byte
+		Stdin     [TaskLen16]byte
+		Stdout    [TaskLen16]byte
 		Flag      uint32
 	}
 
@@ -80,8 +75,10 @@ type (
 		Argnum      uint32
 	}
 
-	StrArrayBuffer struct {
-		buffer []byte
+	Buffer struct {
+		argNum     uint32
+		bufferSize uint32
+		buffer     []byte
 	}
 )
 
@@ -120,57 +117,24 @@ func (fn *Filename) string() string {
 	return unix.ByteSliceToString(fn[:])
 }
 
-func (ar *BufArrayStr) stringArray() (ret []string) {
-	// buf: [(u8)string count][(u32)str1 size][str1][(u32)str2 size][str2]...
+func (b *Buffer) string() map[int]string {
+	// buf:[(u8)elem_num_1][(u32)str1_size][str1][(u32)str2_size][str2][(u8)elem_num_2][(u32)str1_size][str1]
 	var (
-		length        = ar.offset
-		offset uint32 = 1
-		i             = 0
-		num           = int(ar.buffer[0])
+		offset uint32 = 0
+		args          = make(map[uint32][]string)
+		ret           = make(map[int]string)
 	)
-	for offset < length && i < num {
-		size := binary.LittleEndian.Uint32(ar.buffer[offset : offset+4])
-		offset += 4
-		s := ar.buffer[offset : offset+size]
-		offset += size
-		ret = append(ret, string(bytes.TrimRight(s[:], "\x00")))
+	for index := uint32(0); index < b.argNum; index++ {
+		var num = b.buffer[offset]
+		offset += 1
+		for i := uint8(0); offset < b.bufferSize && i < num; i++ {
+			size := binary.LittleEndian.Uint32(b.buffer[offset : offset+4])
+			offset += 4
+			s := b.buffer[offset : offset+size]
+			offset += size
+			args[index] = append(args[index], string(bytes.ReplaceAll(s[:], []byte("\x00"), []byte(" "))))
+		}
+		ret[int(index)] = strings.TrimSpace(strings.Join(args[index], ""))
 	}
-	return
-}
-
-func (sa *StrArrayBuffer) stringArray() (ret []string) {
-
-	var (
-		length        = uint32(len(sa.buffer))
-		offset uint32 = 1
-		i      uint8  = 0
-		num           = sa.buffer[0]
-	)
-	for ; offset < length && i < num; i++ {
-		size := binary.LittleEndian.Uint32(sa.buffer[offset : offset+4])
-		offset += 4
-		s := sa.buffer[offset : offset+size]
-		offset += size
-		ret = append(ret, string(bytes.TrimRight(s[:], "\x00")))
-	}
-	return
-}
-
-func (sa *StrArrayBuffer) string() string {
-	var (
-		length        = uint32(len(sa.buffer))
-		offset uint32 = 1
-		i      uint8  = 0
-		num           = sa.buffer[0]
-		ret    []string
-	)
-	for ; offset < length && i < num; i++ {
-		size := binary.LittleEndian.Uint32(sa.buffer[offset : offset+4])
-		offset += 4
-		s := sa.buffer[offset : offset+size]
-		offset += size
-		ret = append(ret, string(bytes.ReplaceAll(s[:], []byte("\x00"), []byte(" "))))
-		// ret = append(ret, string(bytes.TrimRight(s[:], "\x00")))
-	}
-	return strings.TrimSpace(strings.Join(ret, ""))
+	return ret
 }

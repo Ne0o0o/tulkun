@@ -141,9 +141,17 @@ int tracepoint_sys_enter_execve(struct trace_event_raw_sys_enter *ctx)
     {
         return 0;
     }
-    save_str_arr_to_buf(&p.event->buf, (void *)(ctx->args[1]) /*argv*/);
-    // p.event->context.syscall = 221;
-    u32 size = sizeof(event_context_t) + p.event->buf.buf_off;
+    if (!save_str_arr_to_buf(&p.event->buf, (void *)(ctx->args[1]) /*argv*/))
+    {
+        return 0;
+    }
+    p.event->buf.arg_num += 1;
+    if (!save_str_arr_to_buf(&p.event->buf, (void *)(ctx->args[2]) /*envp*/))
+    {
+        return 0;
+    }
+    p.event->buf.arg_num += 1;
+    u32 size = sizeof(event_context_t) + sizeof(p.event->buf.arg_num) + sizeof(p.event->buf.buf_off) + p.event->buf.buf_off;
     if (size > sizeof(event_context_t) + MAX_BUF_SIZE - 1)
     {
         return 0;
