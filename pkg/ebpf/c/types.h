@@ -9,7 +9,7 @@
 #include <bpf/bpf_helpers.h>
 
 #define TASK_COMM_LEN 16
-
+#define TASK_LEN_16 16
 #define DNS_DATA_LEN 128
 #define COMM_DATA_LEN 64
 #define FILENAME_DATA_LEN 64
@@ -112,8 +112,9 @@ typedef struct process_data
 
 typedef struct buffer_data
 {
-    char buf[MAX_BUF_SIZE];
+    u32 arg_num;
     u32 buf_off;
+    char buf[MAX_BUF_SIZE];
 } buffer_data_t;
 
 typedef struct task_context
@@ -129,11 +130,11 @@ typedef struct task_context
     u32 uid;
     u32 mnt_id;
     u32 pid_id;
-    char tty[TASK_COMM_LEN];
-    char comm[TASK_COMM_LEN];
-    char uts_name[TASK_COMM_LEN];
-    char stdin[MAX_STRING_LEN];
-    char stdout[MAX_STRING_LEN];
+    char tty[TASK_LEN_16];
+    char comm[TASK_LEN_16];
+    char uts_name[TASK_LEN_16];
+    char stdin[TASK_LEN_16];
+    char stdout[TASK_LEN_16];
     u32 flags;
 } task_context_t;
 

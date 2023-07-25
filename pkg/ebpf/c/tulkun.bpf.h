@@ -92,14 +92,14 @@ static __always_inline int init_program_data(program_data_t *p, void *ctx)
     if (uts_name)
     {
         __builtin_memset(p->event->context.task.uts_name, 0, sizeof(p->event->context.task.uts_name));
-        bpf_probe_read_str(&p->event->context.task.uts_name, TASK_COMM_LEN, uts_name);
+        bpf_probe_read_str(&p->event->context.task.uts_name, TASK_LEN_16, uts_name);
     }
     // tty name
     char *tty_name = get_task_tty(p->task);
     if (tty_name)
     {
         __builtin_memset(p->event->context.task.tty, 0, sizeof(p->event->context.task.tty));
-        bpf_probe_read_str(&p->event->context.task.tty, TASK_COMM_LEN, tty_name);
+        bpf_probe_read_str(&p->event->context.task.tty, TASK_LEN_16, tty_name);
     }
     // syscall num
     p->event->context.syscall = get_task_syscall_id(p->task);
@@ -112,7 +112,7 @@ static __always_inline int init_program_data(program_data_t *p, void *ctx)
         struct path path = READ_KERN(stdin_f->f_path);
         void *stdin = get_path_str(__builtin_preserve_access_index(&path));
         __builtin_memset(p->event->context.task.stdin, 0, sizeof(p->event->context.task.stdin));
-        bpf_probe_read_str(&p->event->context.task.stdin, MAX_STRING_LEN, stdin);
+        bpf_probe_read_str(&p->event->context.task.stdin, TASK_LEN_16, stdin);
     }
 
     struct file *stdout_f = get_task_fd(p->task, 1);
@@ -121,17 +121,20 @@ static __always_inline int init_program_data(program_data_t *p, void *ctx)
         struct path path = READ_KERN(stdout_f->f_path);
         void *stdout = get_path_str(__builtin_preserve_access_index(&path));
         __builtin_memset(p->event->context.task.stdout, 0, sizeof(p->event->context.task.stdout));
-        bpf_probe_read_str(&p->event->context.task.stdout, MAX_STRING_LEN, stdout);
+        bpf_probe_read_str(&p->event->context.task.stdout, TASK_LEN_16, stdout);
     }
     // current context
 
     p->event->context.processor_id = (u16)bpf_get_smp_processor_id();
     p->ctx = ctx;
 
-    // reset buf offset
+    // reset buf offset and args
     p->event->buf.buf_off = 0;
+    p->event->buf.arg_num = 0;
+
     // reset flags
     p->event->context.task.flags = 0;
+
     return 1;
 }
 
