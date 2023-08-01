@@ -64,8 +64,6 @@ type (
 		UtsName   [TaskLen16]byte
 		Stdin     [TaskLen16]byte
 		Stdout    [TaskLen16]byte
-		Stdin     [TaskLen64]byte
-		Stdout    [TaskLen64]byte
 		Flag      uint32
 	}
 

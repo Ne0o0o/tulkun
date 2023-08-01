@@ -156,7 +156,6 @@ int tracepoint_sys_enter_execve(struct trace_event_raw_sys_enter *ctx)
     {
         return 0;
     }
-    // void *output_data = p.event;
     bpf_perf_event_output(ctx, &execve_perf, BPF_F_CURRENT_CPU, p.event, size);
     return 0;
 }
