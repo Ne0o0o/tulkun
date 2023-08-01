@@ -23,6 +23,12 @@
 sh install/install-compile-env.sh
 ```
 
+### 更新 submodule
+
+```shell
+git submodule init && git submodule update
+```
+
 ### 编译运行
 
 ```shell
