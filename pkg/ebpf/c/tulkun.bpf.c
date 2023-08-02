@@ -151,11 +151,11 @@ int tracepoint_sys_enter_execve(struct trace_event_raw_sys_enter *ctx)
         return 0;
     }
     p.event->buf.arg_num += 1;
-    u32 size = sizeof(event_context_t) + sizeof(p.event->buf.arg_num) + sizeof(p.event->buf.buf_off) + p.event->buf.buf_off;
-    if (size > sizeof(event_context_t) + MAX_BUF_SIZE - 1)
+    u32 size = sizeof(syscall_context_t) + sizeof(p.event->buf.arg_num) + sizeof(p.event->buf.buf_off) + p.event->buf.buf_off;
+    if (size > sizeof(syscall_context_t) + MAX_BUF_SIZE - 1)
     {
         return 0;
     }
-    bpf_perf_event_output(ctx, &execve_perf, BPF_F_CURRENT_CPU, p.event, size);
+    bpf_perf_event_output(ctx, &syscall_event, BPF_F_CURRENT_CPU, p.event, size);
     return 0;
 }

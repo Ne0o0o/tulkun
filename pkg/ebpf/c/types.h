@@ -138,7 +138,7 @@ typedef struct task_context
     u32 flags;
 } task_context_t;
 
-typedef struct event_context
+typedef struct syscall_context
 {
     u64 ts; // Timestamp
     task_context_t task;
@@ -149,11 +149,11 @@ typedef struct event_context
                       // u32 stack_id;
     u16 processor_id; // The ID of the processor which processed the event
     u32 argnum;
-} event_context_t;
+} syscall_context_t;
 
 typedef struct event_data
 {
-    event_context_t context;
+    syscall_context_t context;
     buffer_data_t buf;
     u64 param_types;
 } event_data_t;

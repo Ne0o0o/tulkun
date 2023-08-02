@@ -25,11 +25,13 @@ func enrichProcess(pid int32, msg map[string]interface{}) {
 	}
 }
 
-func enrichRuntime(cgroupId uint64, msg map[string]interface{}) {
+func enrichRuntime(cgroupId uint64) *map[string]interface{} {
 	cgroup := cgroups.Cgroup2PathFromInode(cgroupId)
 	if cgroup == "" {
-		return
+		return nil
 	}
+	var runtimeMeta = make(map[string]interface{})
+	runtimeMeta["cgroup"] = cgroup
 	if rt := runtime.SelectContainerRuntime(cgroup); rt != nil {
 		if meta := rt.InspectContainerWithCgroup(cgroup); meta != nil {
 			var container = make(map[string]interface{})
@@ -37,7 +39,8 @@ func enrichRuntime(cgroupId uint64, msg map[string]interface{}) {
 			container["containerName"] = meta.Name
 			container["imageId"] = meta.ImageID
 			container["imageName"] = meta.ImageName
-			msg["runtime"] = container
+			runtimeMeta["runtime"] = container
 		}
 	}
+	return &runtimeMeta
 }

@@ -91,11 +91,11 @@ func (rb *Ringbuf) SetMap(m *ebpf.Map, spec *ebpf.MapSpec) {
 }
 
 type HashMap struct {
-	EbpfMapName  string
-	MapSpec      *ebpf.MapSpec
-	Map          *ebpf.Map
-	Reader       *ringbuf.Reader
-	EventHandler func([]byte)
+	EbpfMapName string
+	MapSpec     *ebpf.MapSpec
+	Map         *ebpf.Map
+	// Reader      *ringbuf.Reader
+	// EventHandler func([]byte)
 }
 
 func (h *HashMap) Name() string {
