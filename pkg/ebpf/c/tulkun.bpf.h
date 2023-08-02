@@ -63,7 +63,7 @@ static __always_inline int init_program_data(program_data_t *p, void *ctx)
 
     if (p->event == NULL)
     {
-        p->event = bpf_map_lookup_elem(&event_data_map, &zero);
+        p->event = bpf_map_lookup_elem(&event_buf, &zero);
         if (unlikely(p->event == NULL))
             return 0;
     }

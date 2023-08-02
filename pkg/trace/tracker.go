@@ -65,8 +65,7 @@ func (pc *ProbeCollection) loadCollection() {
 	}
 	pc.Collection = col
 	for name := range pc.Programs {
-		prog := pc.Programs[name]
-		prog.SetProgram(pc.Collection.Programs[name], pc.CollectionSpec.Programs[name])
+		pc.Programs[name].SetProgram(pc.Collection.Programs[name], pc.CollectionSpec.Programs[name])
 	}
 	for name := range pc.Maps {
 		pc.Maps[name].SetMap(pc.Collection.Maps[name], pc.CollectionSpec.Maps[name])
@@ -126,25 +125,22 @@ func init() {
 		},
 		[]MapInterface{
 			&Ringbuf{
-				EbpfMapName:  "socket_events",
+				EbpfMapName:  "socket_events", // dns event output
 				EventHandler: event.DNSEvent{Output: os.Stdout}.Handle,
 			},
 			&HashMap{
-				EbpfMapName: "ports_process",
+				EbpfMapName: "ports_process", // dns event meta buffer
 			},
 			&HashMap{
-				EbpfMapName: "event_data_map",
+				EbpfMapName: "event_buf", // syscall event buffer
 			},
 			&HashMap{
-				EbpfMapName: "bufs",
-			},
-			&Ringbuf{
-				EbpfMapName:  "execve_events",
-				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
+				EbpfMapName: "bufs", // syscall per cpu buffer
 			},
 			&PerfRing{
-				EbpfMapName:  "execve_perf",
-				EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
+				EbpfMapName: "syscall_event", // syscall event output
+				// EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
+				EventHandler: event.SyscallEvent{Output: os.Stdout}.Handle,
 			},
 		},
 	)

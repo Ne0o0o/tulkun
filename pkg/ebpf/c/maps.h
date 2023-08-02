@@ -59,7 +59,7 @@ typedef __u64 stack_trace_t[MAX_STACK_DEPTH];
 BPF_PERCPU_ARRAY(bufs, buf_t, MAX_BUFFERS); // percpu global buffer
 
 // bpf program stack buffer
-BPF_PERCPU_ARRAY(event_data_map, event_data_t, 1);
+BPF_PERCPU_ARRAY(event_buf, event_data_t, 1);
 
 struct
 {
@@ -67,13 +67,7 @@ struct
     __uint(key_size, sizeof(int));
     __uint(value_size, sizeof(u32));
     __uint(max_entries, 1024);
-} execve_perf SEC(".maps");
-
-struct
-{
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 1024 * 512 /* 256 KB */);
-} execve_events SEC(".maps");
+} syscall_event SEC(".maps");
 
 /* BPF ringbuf map for dns socket filter output event */
 struct
@@ -98,6 +92,6 @@ struct
     __type(key, u32);
     __type(value, event_data_t);
     __uint(max_entries, 1);
-} event_data_map SEC(".maps");
+} event_buf SEC(".maps");
 */
 #endif /* __MAPS_H__ */
