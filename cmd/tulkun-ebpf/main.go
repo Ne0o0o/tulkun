@@ -33,15 +33,38 @@ func main() {
 				Value:   "",
 				Aliases: []string{"i"},
 			},
+			&cli.StringFlag{
+				Name:  "bpf-object",
+				Usage: "load custom bpf object",
+			},
 		},
 		EnableBashCompletion: false,
 		BashComplete:         nil,
 		Before:               nil,
 		After:                nil,
 		Action: func(c *cli.Context) error {
+			var (
+				bpfObjectBuffer []byte
+				err             error
+			)
+			// load bpf object from custom file
+			if file := c.String("bpf-object"); file != "" {
+				if bpfObjectBuffer, err = os.ReadFile(file); err != nil {
+					return err
+				}
+			} else {
+				bpfObjectBuffer = tulkun.BPFObjectBuffer
+			}
+
+			//  init new tracker
+			collections, err := trace.NewTracker(bpfObjectBuffer)
+			if err != nil {
+				log.Fatalf("load ebpf object error %s ", err)
+			}
+
 			ctx, cancel := context.WithCancelCause(context.Background())
-			trace.ProbeCollections.RunWithCancel(ctx)
-			defer trace.ProbeCollections.Destroy()
+			collections.RunWithCancel(ctx)
+			defer collections.Destroy()
 			func(causeFunc context.CancelCauseFunc) {
 				c := make(chan os.Signal)
 				signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)

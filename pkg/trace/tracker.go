@@ -3,9 +3,9 @@ package trace
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 
-	"tulkun"
 	"tulkun/pkg/trace/event"
 
 	"github.com/cilium/ebpf"
@@ -20,9 +20,9 @@ type ProbeCollection struct {
 	Collection     *ebpf.Collection
 }
 
-func (pc *ProbeCollection) register(p []ProgInterface, m []MapInterface) {
+func (pc *ProbeCollection) registerBatch(p []ProgInterface, m []MapInterface) {
 	for _, v := range p {
-		pc.Programs[v.Name()] = v
+		pc.Programs[v.FuncName()] = v
 	}
 
 	for _, v := range m {
@@ -30,45 +30,141 @@ func (pc *ProbeCollection) register(p []ProgInterface, m []MapInterface) {
 	}
 }
 
-func (pc *ProbeCollection) filter(cs *ebpf.CollectionSpec) {
-	// filter ebpf programs
-	for name := range pc.Programs {
-		prog := pc.Programs[name]
-		if spec, ok := cs.Programs[prog.FuncName()]; ok {
-			pc.CollectionSpec.Programs[name] = spec
-		} else {
-			log.Infof("drop program `%s`", prog.Name())
-			// delete(cs.Programs, name)
-		}
-	}
-	// filter ebpf maps
-	if spec, ok := cs.Maps[".bss"]; ok {
-		pc.CollectionSpec.Maps[".bss"] = spec
-	}
-
-	for name := range pc.Maps {
-		if spec, ok := cs.Maps[name]; ok {
-			pc.CollectionSpec.Maps[name] = spec
-		} else {
-			log.Infof("drop maps `%s`", name)
-		}
+func (pc *ProbeCollection) registerProgram(p ProgInterface) {
+	if _, ok := pc.Programs[p.FuncName()]; !ok {
+		pc.Programs[p.FuncName()] = p
+	} else {
+		log.Info("program `%s` is already exist", p.FuncName())
 	}
 }
 
-func (pc *ProbeCollection) loadCollection() {
+func (pc *ProbeCollection) registerMap(m MapInterface) {
+	if _, ok := pc.Maps[m.Name()]; !ok {
+		pc.Maps[m.Name()] = m
+	} else {
+		log.Info("map `%s` is already exist", m.Name())
+	}
+}
+
+func (pc *ProbeCollection) loadCollections() {
+	// set programs
+	for name := range pc.Programs {
+		pc.Programs[name].SetProgram(pc.Collection.Programs[name], pc.CollectionSpec.Programs[name])
+	}
+	// set maps
+	for name := range pc.Maps {
+		pc.Maps[name].SetMap(pc.Collection.Maps[name], pc.CollectionSpec.Maps[name])
+	}
+}
+
+func (pc *ProbeCollection) LoadCollectionFromFilter(spec *ebpf.CollectionSpec) {
 	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatal(err)
 	}
-	col, err := ebpf.NewCollectionWithOptions(pc.CollectionSpec, ebpf.CollectionOptions{})
+	// set runtime spec
+	pc.CollectionSpec = spec
+	// load runtime collections
+	col, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{})
 	if err != nil {
 		log.Fatalf("create ebpf object collection error %s", err)
 	}
 	pc.Collection = col
+	// set ebpf programs
 	for name := range pc.Programs {
-		pc.Programs[name].SetProgram(pc.Collection.Programs[name], pc.CollectionSpec.Programs[name])
+		prog := pc.Programs[name]
+		if ps, ok := spec.Programs[prog.FuncName()]; ok {
+			pc.CollectionSpec.Programs[name] = ps
+		} else {
+			log.Infof("drop program `%s`", prog.Name())
+		}
 	}
+	// set maps for static
+	if ps, ok := spec.Maps[".bss"]; ok {
+		pc.CollectionSpec.Maps[".bss"] = ps
+	}
+
+	// set ebpf maps
 	for name := range pc.Maps {
-		pc.Maps[name].SetMap(pc.Collection.Maps[name], pc.CollectionSpec.Maps[name])
+		if ps, ok := spec.Maps[name]; ok {
+			pc.CollectionSpec.Maps[name] = ps
+		} else {
+			log.Infof("drop maps `%s`", name)
+		}
+	}
+	pc.loadCollections()
+}
+
+func (pc *ProbeCollection) LoadCollectionFromSpec(spec *ebpf.CollectionSpec) {
+	if err := rlimit.RemoveMemlock(); err != nil {
+		log.Fatal(err)
+	}
+	// set runtime spec
+	pc.CollectionSpec = spec
+	// load runtime collections
+	col, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{})
+	if err != nil {
+		log.Fatalf("create ebpf object collection error %s", err)
+	}
+	pc.Collection = col
+	// set ebpf programs
+	for name := range spec.Programs {
+		switch spec.Programs[name].Type {
+		case ebpf.Kprobe:
+			pc.registerProgram(&Kprobe{
+				EbpfFuncName: spec.Programs[name].Name,
+			})
+		case ebpf.TracePoint:
+			pc.registerProgram(&Tracepoint{
+				EbpfFuncName: spec.Programs[name].Name,
+			})
+		case ebpf.RawTracepoint:
+			pc.registerProgram(&RawTracepoint{
+				EbpfFuncName: spec.Programs[name].Name,
+			})
+		case ebpf.SocketFilter:
+			pc.registerProgram(&SocketFilter{
+				EbpfFuncName: spec.Programs[name].Name,
+			})
+		}
+	}
+	// set ebpf maps
+	for name := range spec.Maps {
+		switch spec.Maps[name].Type {
+		case ebpf.Hash, ebpf.LRUHash, ebpf.Array, ebpf.PerCPUArray:
+			pc.registerMap(&HashMap{
+				EbpfMapName: spec.Maps[name].Name,
+			})
+		case ebpf.PerfEventArray:
+			var handler func(b []byte)
+			if _, ok := DefaultMapHandler[name]; ok {
+				handler = DefaultMapHandler[name]
+			}
+			pc.registerMap(&PerfRing{
+				EbpfMapName:  spec.Maps[name].Name,
+				EventHandler: handler,
+			})
+		case ebpf.RingBuf:
+			var handler func(b []byte)
+			if _, ok := DefaultMapHandler[name]; ok {
+				handler = DefaultMapHandler[name]
+			}
+			pc.registerMap(&Ringbuf{
+				EbpfMapName:  spec.Maps[name].Name,
+				EventHandler: handler,
+			})
+		}
+	}
+	pc.loadCollections()
+}
+
+func (pc *ProbeCollection) ResetMaps(mapList []MapInterface) {
+	for _, m := range mapList {
+		if _, ok := pc.Maps[m.Name()]; ok {
+			pc.Maps[m.Name()] = m
+			pc.Maps[m.Name()].SetMap(pc.Collection.Maps[m.Name()], pc.CollectionSpec.Maps[m.Name()])
+		} else {
+			log.Errorf("reset map error `%s` not exist", m.Name())
+		}
 	}
 }
 
@@ -92,58 +188,28 @@ func (pc *ProbeCollection) Destroy() {
 	}
 }
 
-var ProbeCollections = &ProbeCollection{
-	Programs: make(map[string]ProgInterface),
-	Maps:     make(map[string]MapInterface),
-	CollectionSpec: &ebpf.CollectionSpec{
-		Maps:     make(map[string]*ebpf.MapSpec),
-		Programs: make(map[string]*ebpf.ProgramSpec),
-	},
+var DefaultMapHandler = map[string]func([]byte){
+	"dns_event":     event.NullHandler,
+	"socket_events": event.DNSEvent{Output: os.Stdout}.Handle,
+	"syscall_event": event.SyscallEvent{Output: os.Stdout}.Handle,
 }
 
-func init() {
-	spec, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(tulkun.BPFObjectBuffer))
-	if err != nil {
-		log.Fatalf("load ebpf object error %s ", err)
+func NewTracker(bpfObjectBuffer []byte) (*ProbeCollection, error) {
+	if bpfObjectBuffer == nil {
+		return nil, errors.New("empty bpf object")
 	}
-	ProbeCollections.register(
-		[]ProgInterface{
-			&Kprobe{
-				ProbeName:    "kprobe/udp_sendmsg",
-				EbpfFuncName: "kprobe_udp_sendmsg",
-				AttachPoint:  "udp_sendmsg",
-			},
-			&SocketFilter{
-				ProbeName:    "socket/dns_filter",
-				EbpfFuncName: "dns_filter_kernel",
-			}, &Tracepoint{
-				ProbeName:    "tracepoint/syscalls/sys_enter_execve",
-				EbpfFuncName: "tracepoint_sys_enter_execve",
-				AttachGroup:  "syscalls",
-				AttachPoint:  "sys_enter_execve",
-			},
+	spec, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(bpfObjectBuffer))
+	if err != nil {
+		return nil, err
+	}
+	collections := &ProbeCollection{
+		Programs: make(map[string]ProgInterface),
+		Maps:     make(map[string]MapInterface),
+		CollectionSpec: &ebpf.CollectionSpec{
+			Maps:     make(map[string]*ebpf.MapSpec),
+			Programs: make(map[string]*ebpf.ProgramSpec),
 		},
-		[]MapInterface{
-			&Ringbuf{
-				EbpfMapName:  "socket_events", // dns event output
-				EventHandler: event.DNSEvent{Output: os.Stdout}.Handle,
-			},
-			&HashMap{
-				EbpfMapName: "ports_process", // dns event meta buffer
-			},
-			&HashMap{
-				EbpfMapName: "event_buf", // syscall event buffer
-			},
-			&HashMap{
-				EbpfMapName: "bufs", // syscall per cpu buffer
-			},
-			&PerfRing{
-				EbpfMapName: "syscall_event", // syscall event output
-				// EventHandler: event.ExecveEvent{Output: os.Stdout}.Handle,
-				EventHandler: event.SyscallEvent{Output: os.Stdout}.Handle,
-			},
-		},
-	)
-	ProbeCollections.filter(spec)
-	ProbeCollections.loadCollection()
+	}
+	collections.LoadCollectionFromSpec(spec)
+	return collections, nil
 }

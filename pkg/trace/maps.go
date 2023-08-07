@@ -30,6 +30,7 @@ func (pr *PerfRing) Name() string {
 
 func (pr *PerfRing) Start() {
 	pr.Reader, _ = perf.NewReader(pr.Map, 1024)
+	log.Infof("attach perfring `%s` success", pr.Name())
 	for {
 		record, err := pr.Reader.Read()
 		if err != nil {
@@ -67,6 +68,7 @@ func (rb *Ringbuf) Name() string {
 
 func (rb *Ringbuf) Start() {
 	rb.Reader, _ = ringbuf.NewReader(rb.Map)
+	log.Infof("attach ringbuf `%s` success", rb.Name())
 	for {
 		record, err := rb.Reader.Read()
 		if err != nil {

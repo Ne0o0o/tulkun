@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 
@@ -60,4 +61,9 @@ func (e DNSEvent) Handle(b []byte) {
 	msgByte, _ := json.Marshal(e.Msg)
 	msgByte = append(msgByte, []byte("\n")...)
 	_, _ = e.Output.Write(msgByte)
+}
+
+func DNSHandle(b []byte) {
+	a := b
+	fmt.Println(string(a))
 }

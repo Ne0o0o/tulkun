@@ -1,10 +1,14 @@
 package event
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"io"
+	"os"
+	"strconv"
+	"strings"
 	"unsafe"
 
 	log "github.com/sirupsen/logrus"
@@ -33,7 +37,10 @@ import (
 	} task_context_t;
 */
 
-var SyscallHandlerMap = make(map[int]func(SyscallBuffer) *map[string]interface{})
+var (
+	SyscallHandlerMap = make(map[int]func(SyscallBuffer) *map[string]interface{})
+	bootTime          uint64
+)
 
 type TaskContext struct {
 	StartTime uint64
@@ -82,7 +89,7 @@ type SyscallEvent struct {
 
 func (tc TaskContext) fill() *map[string]interface{} {
 	var task = make(map[string]interface{})
-	task["st"] = tc.StartTime
+	task["startTime"] = tc.StartTime/100 + bootTime
 	task["cgroupId"] = tc.CgroupID
 	task["pid"] = tc.PID
 	task["tid"] = tc.TID
@@ -155,4 +162,22 @@ func (se SyscallEvent) fillOutput(out *map[string]interface{}) {
 func init() {
 	// init syscall buffer handler
 	SyscallHandlerMap[unix.SYS_EXECVE] = fillExecve
+
+	// set boot time
+	file, err := os.Open("/proc/stat")
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	s := bufio.NewScanner(file)
+	for s.Scan() {
+		fields := strings.Fields(s.Text())
+		if !strings.HasPrefix(s.Text(), "btime") {
+			continue
+		}
+		if len(fields) < 2 {
+			continue
+		}
+		bootTime, _ = strconv.ParseUint(fields[1], 10, 64)
+	}
 }
