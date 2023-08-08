@@ -18,7 +18,7 @@ import (
 func main() {
 	app := cli.App{
 		Name:           "Tulkun",
-		HelpName:       "eBPF based lightweight Host-based Intrusion Detection System",
+		HelpName:       "eBPF based lightweight Host-based Intrusion Detection Tools",
 		Usage:          "",
 		UsageText:      "",
 		ArgsUsage:      "",
@@ -29,7 +29,7 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "interface",
-				Usage:   "select network interface for DNS monitor",
+				Usage:   "select network interface for network traffic monitor",
 				Value:   "",
 				Aliases: []string{"i"},
 			},
