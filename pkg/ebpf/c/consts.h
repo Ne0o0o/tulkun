@@ -21,24 +21,24 @@
 
 // clang-format on
 
-#define MAX_STR_ARR_ELEM      38 // TODO: turn this into global variables set w/ libbpfgo
+#define MAX_STR_ARR_ELEM 38 // TODO: turn this into global variables set w/ libbpfgo
 #define MAX_ARGS_STR_ARR_ELEM 15
-#define MAX_PATH_PREF_SIZE    64
-#define MAX_PATH_COMPONENTS   20
-#define MAX_BIN_CHUNKS        110
+#define MAX_PATH_PREF_SIZE 64
+#define MAX_PATH_COMPONENTS 20
+#define MAX_BIN_CHUNKS 110
 
 #define CAPTURE_IFACE (1 << 0)
-#define TRACE_IFACE   (1 << 1)
+#define TRACE_IFACE (1 << 1)
 
-#define OPT_EXEC_ENV              (1 << 0)
-#define OPT_CAPTURE_FILES         (1 << 1)
-#define OPT_EXTRACT_DYN_CODE      (1 << 2)
-#define OPT_CAPTURE_STACK_TRACES  (1 << 3)
-#define OPT_CAPTURE_MODULES       (1 << 4)
-#define OPT_CGROUP_V1             (1 << 5)
-#define OPT_PROCESS_INFO          (1 << 6)
+#define OPT_EXEC_ENV (1 << 0)
+#define OPT_CAPTURE_FILES (1 << 1)
+#define OPT_EXTRACT_DYN_CODE (1 << 2)
+#define OPT_CAPTURE_STACK_TRACES (1 << 3)
+#define OPT_CAPTURE_MODULES (1 << 4)
+#define OPT_CGROUP_V1 (1 << 5)
+#define OPT_PROCESS_INFO (1 << 6)
 #define OPT_TRANSLATE_FD_FILEPATH (1 << 7)
-#define OPT_CAPTURE_BPF           (1 << 8)
+#define OPT_CAPTURE_BPF (1 << 8)
 
 enum buf_idx_e
 {
