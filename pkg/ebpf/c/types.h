@@ -20,9 +20,10 @@
 #define TCPH_HLEN sizeof(struct tcphdr)
 #define DNSH_HLEN sizeof(struct dnshdr)
 
-#define MAX_BUF_SIZE 1024 * 4
+#define MAX_BUF_SIZE 1024 * 20
 #define MAX_STR_ARR_ELEM 38 // TODO: turn this into global variables set w/ libbpfgo
-#define MAX_STRING_LEN 64
+#define MAX_STRING_LEN 128
+#define MAX_BYTE_ARR_LEN 4096
 #define MAX_ELEMENT_SIZE sizeof(struct sockaddr_un)
 
 typedef struct args
@@ -117,6 +118,20 @@ typedef struct buffer_data
     char buf[MAX_BUF_SIZE];
 } buffer_data_t;
 
+typedef struct network_connection_v4
+{
+    u32 local_address;
+    u16 local_port;
+    u32 remote_address;
+    u16 remote_port;
+} net_conn_v4_t;
+
+typedef struct msg_context
+{
+    net_conn_v4_t conn;
+    struct msghdr *msg;
+} msg_context_t;
+
 typedef struct task_context
 {
     u64 start_time; // thread's start time
@@ -138,6 +153,26 @@ typedef struct task_context
     u32 flags;
 } task_context_t;
 
+typedef struct net_conn_context
+{
+    u64 ts;           // Timestamp
+    u16 processor_id; // The ID of the processor which processed the event
+    task_context_t task;
+    net_conn_v4_t conn;
+} net_conn_context_t;
+
+typedef struct net_conn_event_data
+{
+    net_conn_context_t context;
+    buffer_data_t buf;
+} net_conn_event_data_t;
+
+typedef struct net_conn_program
+{
+    struct task_struct *task;
+    net_conn_event_data_t *event;
+} net_conn_program_t;
+
 typedef struct syscall_context
 {
     u64 ts; // Timestamp
@@ -151,18 +186,17 @@ typedef struct syscall_context
     u32 argnum;
 } syscall_context_t;
 
-typedef struct event_data
+typedef struct syscall_event_data
 {
     syscall_context_t context;
     buffer_data_t buf;
-    u64 param_types;
-} event_data_t;
+} syscall_event_data_t;
 
-typedef struct program_data
+typedef struct syscall_program
 {
     struct task_struct *task;
-    event_data_t *event;
+    syscall_event_data_t *event;
     void *ctx;
-} program_data_t;
+} syscall_program_t;
 
 #endif /* __TYPES_H__ */

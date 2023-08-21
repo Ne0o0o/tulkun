@@ -146,6 +146,45 @@ func (kp *Kprobe) SetProgram(prog *ebpf.Program, spec *ebpf.ProgramSpec) {
 	kp.programSpec = spec
 }
 
+type Kretprobe struct {
+	SectionName  string
+	EbpfFuncName string
+	AttachTo     string
+	Description  string
+	program      *ebpf.Program
+	programSpec  *ebpf.ProgramSpec
+	Link         link.Link
+}
+
+func (kp *Kretprobe) FuncName() string {
+	return kp.EbpfFuncName
+}
+
+func (kp *Kretprobe) Name() string {
+	return kp.SectionName
+}
+
+func (kp *Kretprobe) Attach() {
+	probe, err := link.Kretprobe(kp.AttachTo, kp.program, nil)
+	if err != nil {
+		log.Errorf("attach kretprobe `%s` failed %s", kp.EbpfFuncName, err)
+		return
+	}
+	log.Infof("attach kretprobe `%s` success", kp.EbpfFuncName)
+	kp.Link = probe
+}
+
+func (kp *Kretprobe) Detach() {
+	_ = kp.Link.Close()
+}
+
+func (kp *Kretprobe) SetProgram(prog *ebpf.Program, spec *ebpf.ProgramSpec) {
+	kp.SectionName = spec.SectionName
+	kp.AttachTo = spec.AttachTo
+	kp.program = prog
+	kp.programSpec = spec
+}
+
 type SocketFilter struct {
 	SectionName  string
 	EbpfFuncName string

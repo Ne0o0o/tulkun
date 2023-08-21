@@ -58,8 +58,13 @@ typedef __u64 stack_trace_t[MAX_STACK_DEPTH];
 // just simple temp buffer
 BPF_ARRAY(bufs, buf_t, MAX_BUFFERS); // percpu global buffer
 
-// bpf program stack buffer
-BPF_PERCPU_ARRAY(event_buf, event_data_t, 1);
+// syscall event stack buffer
+BPF_PERCPU_ARRAY(syscall_buf, syscall_event_data_t, 1);
+
+// net connect event stack buffer
+BPF_PERCPU_ARRAY(net_conn_buf, net_conn_event_data_t, 1);
+// udpmsg
+BPF_LRU_HASH(msg_buf, u64, msg_context_t, 4096);
 
 // syscall event perf array
 struct
@@ -95,13 +100,4 @@ struct
     __uint(max_entries, 512);
 } ports_process SEC(".maps");
 
-/* event buffer in map
-struct
-{
-    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-    __type(key, u32);
-    __type(value, event_data_t);
-    __uint(max_entries, 1);
-} event_buf SEC(".maps");
-*/
 #endif /* __MAPS_H__ */

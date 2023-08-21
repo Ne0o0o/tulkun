@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 
 	"tulkun/pkg/trace/event"
 
@@ -110,9 +111,18 @@ func (pc *ProbeCollection) LoadCollectionFromSpec(spec *ebpf.CollectionSpec) {
 	for name := range spec.Programs {
 		switch spec.Programs[name].Type {
 		case ebpf.Kprobe:
-			pc.registerProgram(&Kprobe{
-				EbpfFuncName: spec.Programs[name].Name,
-			})
+			if strings.HasPrefix(spec.Programs[name].SectionName, "kretprobe/") {
+				pc.registerProgram(&Kretprobe{
+					EbpfFuncName: spec.Programs[name].Name,
+				})
+			} else if strings.HasPrefix(spec.Programs[name].SectionName, "kprobe/") {
+				pc.registerProgram(&Kprobe{
+					EbpfFuncName: spec.Programs[name].Name,
+				})
+			} else {
+				// TODO: uprobe
+
+			}
 		case ebpf.TracePoint:
 			pc.registerProgram(&Tracepoint{
 				EbpfFuncName: spec.Programs[name].Name,
@@ -189,7 +199,7 @@ func (pc *ProbeCollection) Destroy() {
 }
 
 var DefaultMapHandler = map[string]func([]byte){
-	"dns_event":     event.NullHandler,
+	"dns_event":     event.PrintStringHandler,
 	"socket_events": event.DNSEvent{Output: os.Stdout}.Handle,
 	"syscall_event": event.SyscallEvent{Output: os.Stdout}.Handle,
 }

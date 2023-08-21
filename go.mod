@@ -3,16 +3,15 @@ module tulkun
 go 1.20
 
 require (
-	github.com/aquasecurity/libbpfgo v0.4.6-libbpf-1.1.0
-	github.com/cilium/ebpf v0.10.0
-	github.com/containerd/cgroups/v3 v3.0.1
-	github.com/docker/docker v24.0.2+incompatible
-	github.com/shirou/gopsutil/v3 v3.23.5
+	github.com/cilium/ebpf v0.11.0
+	github.com/containerd/cgroups/v3 v3.0.2
+	github.com/docker/docker v24.0.5+incompatible
+	github.com/shirou/gopsutil/v3 v3.23.7
 	github.com/sirupsen/logrus v1.9.3
 	github.com/urfave/cli/v2 v2.25.7
-	golang.org/x/sys v0.8.0
-	google.golang.org/grpc v1.51.0
-	k8s.io/cri-api v0.27.3
+	golang.org/x/sys v0.11.0
+	google.golang.org/grpc v1.57.0
+	k8s.io/cri-api v0.27.4
 )
 
 require (
@@ -40,12 +39,13 @@ require (
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
+	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2 // indirect
 	golang.org/x/mod v0.8.0 // indirect
-	golang.org/x/net v0.8.0 // indirect
-	golang.org/x/text v0.8.0 // indirect
+	golang.org/x/net v0.9.0 // indirect
+	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
-	google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
+	google.golang.org/protobuf v1.30.0 // indirect
 	gotest.tools/v3 v3.4.0 // indirect
 )

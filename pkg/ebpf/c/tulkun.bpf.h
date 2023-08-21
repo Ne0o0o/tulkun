@@ -8,6 +8,7 @@
 #include <vmlinux.h>
 #include <vmlinux_missing.h>
 
+#include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 
@@ -54,16 +55,92 @@ static __always_inline int get_task_syscall_id(struct task_struct *task)
     return get_syscall_id_from_regs(regs);
 }
 
-static __always_inline int init_program_data(program_data_t *p, void *ctx)
+static __always_inline int fill_net_conn_context(struct sock *sk, net_conn_v4_t *conn, int peer)
+{
+    if (peer)
+    {
+        conn->remote_port = BPF_CORE_READ(sk, sk_num);
+        conn->local_port = bpf_ntohs(BPF_CORE_READ(sk, sk_dport));
+        conn->remote_address = bpf_ntohl(BPF_CORE_READ(sk, sk_rcv_saddr));
+        conn->local_address = bpf_ntohl(BPF_CORE_READ(sk, sk_daddr));
+    }
+    else
+    {
+        conn->local_port = BPF_CORE_READ(sk, sk_num);
+        conn->remote_port = bpf_ntohs(BPF_CORE_READ(sk, sk_dport));
+        conn->local_address = bpf_ntohl(BPF_CORE_READ(sk, sk_rcv_saddr));
+        conn->remote_address = bpf_ntohl(BPF_CORE_READ(sk, sk_daddr));
+    }
+    return 0;
+}
+
+static __always_inline int fill_task_context(struct task_struct *task, task_context_t *t)
+{
+    long ret = 0;
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    t->start_time = get_task_start_time(task);
+    t->host_tid = pid_tgid;
+    t->host_pid = pid_tgid >> 32;
+    t->host_ppid = get_task_ppid(task);
+    t->uid = bpf_get_current_uid_gid();
+    t->cgroup_id = bpf_get_current_cgroup_id();
+    // task command
+    __builtin_memset(t->comm, 0, sizeof(t->comm));
+    ret = bpf_get_current_comm(&t->comm, sizeof(t->comm));
+    if (unlikely(ret < 0))
+    {
+        // disable logging as a workaround for instruction limit verifier error on kernel 4.19
+        // tracee_log(ctx, BPF_LOG_LVL_ERROR, BPF_LOG_ID_GET_CURRENT_COMM, ret);
+        return 0;
+    }
+    // uts name
+    char *uts_name = get_task_uts_name(task);
+    if (uts_name)
+    {
+        __builtin_memset(t->uts_name, 0, sizeof(t->uts_name));
+        bpf_probe_read_str(&t->uts_name, TASK_LEN_16, uts_name);
+    }
+    // tty name
+    char *tty_name = get_task_tty(task);
+    if (tty_name)
+    {
+        __builtin_memset(t->tty, 0, sizeof(t->tty));
+        bpf_probe_read_str(&t->tty, TASK_LEN_16, tty_name);
+    }
+    // stdin and stdout
+    struct file *stdin_f = get_task_fd(task, 0);
+    if (stdin_f)
+    {
+        struct path path = READ_KERN(stdin_f->f_path);
+        void *stdin = get_path_str(__builtin_preserve_access_index(&path));
+        __builtin_memset(t->stdin, 0, sizeof(t->stdin));
+        bpf_probe_read_str(&t->stdin, TASK_LEN_16, stdin);
+    }
+
+    struct file *stdout_f = get_task_fd(task, 1);
+    if (stdout_f)
+    {
+        struct path path = READ_KERN(stdout_f->f_path);
+        void *stdout = get_path_str(__builtin_preserve_access_index(&path));
+        __builtin_memset(t->stdout, 0, sizeof(t->stdout));
+        bpf_probe_read_str(&t->stdout, TASK_LEN_16, stdout);
+    }
+
+    // reset flags
+    t->flags = 0;
+    return 1;
+}
+
+static __always_inline int init_syscall_data(syscall_program_t *p, void *ctx)
 {
     long ret = 0;
     int zero = 0;
 
-    // allow caller to specify a stack/map based event_data_t pointer
+    // allow caller to specify a stack/map based syscall_event_data_t pointer
 
     if (p->event == NULL)
     {
-        p->event = bpf_map_lookup_elem(&event_buf, &zero);
+        p->event = bpf_map_lookup_elem(&syscall_buf, &zero);
         if (unlikely(p->event == NULL))
             return 0;
     }
@@ -138,56 +215,28 @@ static __always_inline int init_program_data(program_data_t *p, void *ctx)
     return 1;
 }
 
-static __always_inline int save_str_arr_to_buf(buffer_data_t *buffer, const char __user *const __user *ptr)
+static __always_inline int init_net_conn_data(net_conn_program_t *p)
 {
-    // Data saved to submit buf: [string count][str1 size][str1][str2 size][str2]...
+    int zero = 0;
 
-    u8 elem_num = 0;
-    if (buffer->buf_off > MAX_BUF_SIZE - 1)
-        return 0;
-
-    // Save argument index
-    // event->args[event->buf_off] = index;
-
-    // Save space for number of elements (1 byte)
-    u32 orig_off = buffer->buf_off;
-    buffer->buf_off += 1;
-    if (ptr == NULL)
-        goto out;
-#pragma unroll
-    for (int i = 0; i < MAX_STR_ARR_ELEM; i++)
+    // init event buffer
+    if (p->event == NULL)
     {
-        const char *argp = NULL;
-        bpf_probe_read(&argp, sizeof(argp), &ptr[i]);
-        if (!argp)
-            goto out;
-
-        if (buffer->buf_off > MAX_BUF_SIZE - MAX_STRING_LEN - sizeof(int))
-            // not enough space - return
-            goto out;
-
-        // Read into buffer
-        int sz =
-            bpf_probe_read_str(&(buffer->buf[buffer->buf_off + sizeof(int)]), MAX_STRING_LEN, argp);
-        if (sz > 0)
-        {
-            if (buffer->buf_off > MAX_BUF_SIZE - sizeof(int))
-                // Satisfy validator
-                goto out;
-            bpf_probe_read(&(buffer->buf[buffer->buf_off]), sizeof(int), &sz);
-            buffer->buf_off += sz + sizeof(int);
-            elem_num++;
-            continue;
-        }
-        else
-        {
-            goto out;
-        }
+        p->event = bpf_map_lookup_elem(&net_conn_buf, &zero);
+        if (p->event == NULL)
+            return 0;
     }
-out:
-    // save number of elements in the array
-    if (orig_off > MAX_BUF_SIZE - 1)
-        return 0;
-    buffer->buf[orig_off] = elem_num;
+
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    // init task context
+    fill_task_context(task, &p->event->context.task);
+    // set timestamp
+    p->event->context.ts = bpf_ktime_get_ns();
+    // set processor id
+    p->event->context.processor_id = (u16)bpf_get_smp_processor_id();
+    // reset buf offset and args
+    p->event->buf.buf_off = 0;
+    p->event->buf.arg_num = 0;
+
     return 1;
 }
