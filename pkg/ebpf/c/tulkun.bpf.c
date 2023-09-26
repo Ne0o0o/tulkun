@@ -3,7 +3,7 @@
 #include <common.h>
 #include <maps.h>
 #include <types.h>
-
+#include <network.h>
 #include <vmlinux.h>
 #include <vmlinux_missing.h>
 
@@ -231,5 +231,19 @@ int tracepoint_sys_enter_execve(struct trace_event_raw_sys_enter *ctx)
         return 0;
     }
     bpf_perf_event_output(ctx, &syscall_event, BPF_F_CURRENT_CPU, p.event, size);
+    return 0;
+}
+
+SEC("kprobe/security_socket_bind")
+int BPF_KPROBE(kprobe_security_socket_bind)
+{
+    struct socket *sock = (struct socket *)PT_REGS_PARM1(ctx);
+    struct sock *sk = READ_KERN(sock->sk);
+
+    sa_family_t sa_fam = get_sockaddr_family(address);
+    if ((sa_fam != AF_INET) && (sa_fam != AF_INET6) && (sa_fam != AF_UNIX))
+    {
+        return 0;
+    }
     return 0;
 }
